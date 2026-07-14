@@ -12,6 +12,7 @@ import {
 } from "./session.js";
 import { SailController } from "@sail/core";
 import type { AgentMode } from "@sail/core";
+import { loadContextFiles } from "./context.js";
 import chalk from "chalk";
 
 const program = parseArgs(process.argv);
@@ -45,13 +46,28 @@ async function main() {
 
   const controller = new SailController();
 
+  // Load context files unless disabled
+  let contextPrefix = "";
+  if (!options.noContextFiles) {
+    const { agentsMd, systemPrompt } = loadContextFiles(process.cwd());
+    if (agentsMd.length > 0) {
+      contextPrefix =
+        "<project-context>\n" + agentsMd.join("\n\n") + "\n</project-context>\n\n";
+    }
+    if (systemPrompt) {
+      // Append to the system prompt via env
+      process.env.SAIL_APPEND_SYSTEM = systemPrompt;
+    }
+  }
+
   // ---- Non-interactive mode (-p) ----
   if (options.print) {
     const prompt = messages.join(" ") || "Hello";
+    const fullPrompt = contextPrefix + prompt;
     console.log(chalk.dim("Thinking..."));
 
     try {
-      const response = await controller.generate(prompt, {
+      const response = await controller.generate(fullPrompt, {
         resource: "default-user",
         thread: options.noSession
           ? undefined
@@ -115,7 +131,8 @@ async function main() {
     console.log();
 
     try {
-      await controller.stream(prompt, {
+      const initialPrompt = contextPrefix + prompt;
+      await controller.stream(initialPrompt, {
         resource: "default-user",
         thread: session?.threadId,
         onTextChunk: (chunk) => {
