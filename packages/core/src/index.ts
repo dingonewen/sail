@@ -1,7 +1,8 @@
 export { codingAgent } from "./agent.js";
 export { createMemory } from "./memory.js";
 export { createObservability } from "./observability.js";
-export { createController } from "./controller.js";
+export { SailController } from "./controller.js";
+export type { AgentMode } from "./controller.js";
 export {
   readFileTool,
   writeFileTool,
