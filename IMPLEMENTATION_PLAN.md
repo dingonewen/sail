@@ -89,10 +89,10 @@
   - [x] `chat` mode — default conversational coding
   - [x] `plan` mode — analyze before making changes
   - [x] `build` mode — execute changes
-- [x] 6.4 Steering messages (Enter to interrupt/send, Alt+Enter for follow-up)
-- [x] 6.5 Keyboard shortcuts:
-  - [x] `Ctrl+C` interrupt
-  - [x] `Ctrl+L` switch model
+- [ ] 6.4 Steering messages (Enter to interrupt/send, Alt+Enter for follow-up)
+- [ ] 6.5 Keyboard shortcuts:
+  - [ ] `Ctrl+C` interrupt
+  - [ ] `Ctrl+L` switch model
   - [x] `/model` command
   - [x] `/mode` switch agent mode
   - [x] `/tree` view session tree
@@ -103,17 +103,17 @@
 
 - [x] 7.1 Tool classification: safe (read_file, search, list_dir) vs dangerous (bash, write_file, edit_file)
 - [x] 7.2 Dangerous tools use Mastra's built-in `requireApproval: true` (no custom interception needed)
-- [x] 7.3 TUI handles approval events from `AgentController` event stream
+- [ ] 7.3 TUI handles approval events from `AgentController` event stream
 - [x] 7.4 `--approve` / `--no-approve` global flags (auto-approve or always-deny dangerous tools)
 
 ---
 
 ## Phase 8: Integration — Wire Everything Together
 
-- [x] 8.1 Interactive mode: CLI args → `AgentController.init()` → `selectOrCreateThread()` → `sendMessage()` → subscribe to events → TUI render loop
+- [x] 8.1 Interactive mode: CLI args → SailController → Agent.stream() → token-by-token output
 - [x] 8.2 Non-interactive mode (`-p` flag): `agent.generate()` → print `response.text` → exit
-- [x] 8.3 JSON mode (`--mode json`): subscribe to controller events, emit structured JSON lines
-- [x] 8.4 End-to-end test: `sail "read package.json and tell me the project name"`
+- [ ] 8.3 JSON mode (`--mode json`): emit structured JSON event stream
+- [ ] 8.4 End-to-end test: `sail "read package.json and tell me the project name"`
 
 ---
 
@@ -121,8 +121,8 @@
 
 - [x] 9.1 Write `install.sh` (detect Node.js ≥22 → npm install -g → verify)
 - [x] 9.2 npm publish config (`package.json` bin field, etc.)
-- [x] 9.3 Verify one-command install: `curl -fsSL https://.../install.sh | sh`
-- [x] 9.4 Verify macOS + Linux compatibility
+- [ ] 9.3 Verify one-command install: `curl -fsSL https://.../install.sh | sh`
+- [ ] 9.4 Verify macOS + Linux compatibility
 
 ---
 
