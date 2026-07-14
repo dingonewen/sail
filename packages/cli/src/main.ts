@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 import { parseArgs } from "./args.js";
-import { loadConfig } from "./config.js";
+import { loadConfig, resolveProvider, setDefaultProvider, getProviderConfig } from "./config.js";
 import {
   createSession,
   getLastSession,
@@ -39,7 +39,7 @@ async function main() {
       "Supported format: provider/model (e.g., anthropic/claude-sonnet-4-6, openai/gpt-5.5, google/gemini-pro)"
     );
     console.log(
-      "Provider env vars: ANTHROPIC_API_KEY, OPENAI_API_KEY, GOOGLE_API_KEY"
+      "Provider env vars: ANTHROPIC_API_KEY, OPENAI_API_KEY, GOOGLE_API_KEY, DEEPSEEK_API_KEY"
     );
     process.exit(0);
   }
@@ -53,42 +53,24 @@ async function main() {
     process.exit(0);
   }
 
-  // Resolve provider and model
-  let providerId = options.provider || config.provider;
+  // Resolve provider: CLI flag > model string > config default
+  let providerId = resolveProvider(options.provider, options.model);
 
-  // Apply model from CLI (overrides provider default)
-  if (options.model) {
-    process.env.SAIL_MODEL = options.model;
-    // Extract provider from model string (e.g., "openai/gpt-5.5" → "openai")
-    const modelProvider = options.model.split("/")[0];
-    if (modelProvider && getProvider(modelProvider)) {
-      providerId = modelProvider;
-    }
-  } else if (providerId) {
-    // Apply the provider's default model
+  // Apply provider env vars for the agent
+  if (providerId) {
     try {
-      applyProvider(providerId);
+      applyProvider(providerId, options.model, options.apiKey);
     } catch {
       console.log(chalk.yellow(`Unknown provider: ${providerId}`));
       providerId = undefined;
     }
   }
 
-  // Apply API key from CLI flag
-  if (options.apiKey && providerId) {
-    const provider = getProvider(providerId);
-    if (provider) {
-      process.env[provider.envVar] = options.apiKey;
-    }
-  }
-
   // First-run setup wizard (interactive mode only)
   if (!options.print) {
     if (providerId && !isProviderConfigured(providerId)) {
-      // Provider specified but no key — run setup for this provider
       await runSetup(providerId);
     } else if (!providerId && !isConfigured()) {
-      // No provider at all — let user choose
       await runSetup();
     }
   }
@@ -104,7 +86,6 @@ async function main() {
         "<project-context>\n" + agentsMd.join("\n\n") + "\n</project-context>\n\n";
     }
     if (systemPrompt) {
-      // Append to the system prompt via env
       process.env.SAIL_APPEND_SYSTEM = systemPrompt;
     }
   }
@@ -174,6 +155,11 @@ async function main() {
     session = (options.session === false) ? null : createSession(options.name);
   }
 
+  // Re-read config after possible setup wizard
+  const currentConfig = loadConfig();
+  const activeProvider = currentConfig.defaultProvider || "none";
+  const activeModel = currentConfig.providers[activeProvider]?.model || "default";
+
   // Enter the interactive TUI loop
   if (prompt) {
     console.log(chalk.bold("Sail"), chalk.dim("·"), prompt);
@@ -207,7 +193,7 @@ async function main() {
     console.log(chalk.dim("Type a message to start, or /help for commands."));
     console.log(
       chalk.dim(
-        `Session: ${session?.name || "ephemeral"}  ·  Model: ${options.model || config.model || "default"}`
+        `Session: ${session?.name || "ephemeral"}  ·  Provider: ${activeProvider}  ·  Model: ${activeModel}`
       )
     );
     console.log();
@@ -231,7 +217,7 @@ async function main() {
 
       // Handle slash commands
       if (input.startsWith("/")) {
-        handleSlashCommand(input, controller, session);
+        await handleSlashCommand(input, controller, session);
         rl.prompt();
         continue;
       }
@@ -263,7 +249,7 @@ async function main() {
   }
 }
 
-function handleSlashCommand(
+async function handleSlashCommand(
   input: string,
   controller: SailController,
   session: ReturnType<typeof createSession> | null
@@ -274,6 +260,7 @@ function handleSlashCommand(
     case "help":
       console.log(chalk.bold("\nCommands:"));
       console.log("  /help        Show this help");
+      console.log("  /login       Switch provider or add a new one");
       console.log("  /model       Show or change the current model");
       console.log(
         "  /mode        Show or change the agent mode (chat, plan, build)"
@@ -283,6 +270,55 @@ function handleSlashCommand(
       console.log("  /clear       Clear the screen");
       console.log("  /exit        Exit Sail\n");
       break;
+
+    case "login": {
+      const config = loadConfig();
+      if (args[0]) {
+        // /login <provider> — switch to a saved provider, or add a new one
+        const targetId = args[0].toLowerCase();
+        const existing = getProviderConfig(targetId);
+        if (existing) {
+          // Already saved — switch to it
+          try {
+            setDefaultProvider(targetId);
+            applyProvider(targetId);
+            console.log(
+              chalk.green(`Switched to ${args[0]} (model: ${existing.model})`)
+            );
+          } catch (e: any) {
+            console.log(chalk.red(`Error: ${e.message}`));
+          }
+        } else {
+          // Not saved — launch setup wizard
+          await runSetup(targetId);
+        }
+      } else {
+        // /login with no args — show current provider and list saved ones
+        console.log();
+        console.log(
+          chalk.bold("Default provider: ") +
+            (config.defaultProvider
+              ? chalk.green(config.defaultProvider)
+              : chalk.dim("none"))
+        );
+        const saved = Object.entries(config.providers);
+        if (saved.length > 0) {
+          console.log();
+          console.log(chalk.bold("Saved providers:"));
+          for (const [id, pc] of saved) {
+            const marker = id === config.defaultProvider ? chalk.green(" *") : " ";
+            console.log(`${marker} ${chalk.cyan(id)}  →  ${pc.model}`);
+          }
+          console.log(chalk.dim("\n  * = default. Use /login <provider> to switch."));
+        } else {
+          console.log(
+            chalk.dim("No saved providers. Use /login <provider> to add one.")
+          );
+        }
+        console.log();
+      }
+      break;
+    }
 
     case "model":
       console.log(
@@ -295,9 +331,7 @@ function handleSlashCommand(
       break;
 
     case "mode":
-      console.log(
-        chalk.dim(`Current mode: ${controller.mode}`)
-      );
+      console.log(chalk.dim(`Current mode: ${controller.mode}`));
       console.log(chalk.dim("Modes: chat (default), plan, build"));
       if (args[0]) {
         controller.switchMode(args[0] as AgentMode);
