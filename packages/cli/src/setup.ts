@@ -53,12 +53,15 @@ export function getProvider(id: string): ProviderInfo | undefined {
   );
 }
 
-/** Check if a specific provider has an API key available */
+/** Check if a specific provider has an API key available (env var or config) */
 export function isProviderConfigured(providerId: string): boolean {
   const provider = getProvider(providerId);
   if (!provider) return false;
+
+  // Check env var first
   if (process.env[provider.envVar]) return true;
 
+  // Check config file
   const config = loadConfig();
   if (config.provider === provider.id && config.apiKey) return true;
 
@@ -68,13 +71,8 @@ export function isProviderConfigured(providerId: string): boolean {
 /** Check if ANY provider has an API key available */
 export function isConfigured(): boolean {
   const config = loadConfig();
-  if (config.provider && config.apiKey) return true;
-
-  for (const p of PROVIDERS) {
-    if (process.env[p.envVar]) return true;
-  }
-
-  return false;
+  // Only consider file-based config — env vars are checked in the wizard
+  return !!(config.provider && config.apiKey);
 }
 
 /** Apply provider config: set env vars for model and API key */
