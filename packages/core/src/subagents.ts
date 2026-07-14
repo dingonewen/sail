@@ -2,13 +2,18 @@ import { Agent } from "@mastra/core/agent";
 import type { Workspace } from "@mastra/core/workspace";
 
 /**
- * Create specialized subagents for task delegation.
- * All share the same workspace and tools; differentiation is via
- * instructions and description (used by supervisor for routing).
+ * Create specialized subagents with tool-level access control.
+ *
+ * - code-reviewer & code-explorer: read-only tools (no write/bash/delete)
+ * - code-fixer: full tool access
+ *
+ * Delegation is handled by the supervisor's LLM, which reads each
+ * subagent's `description` to decide routing.
  */
 export function createSubagents(
   workspace: Workspace,
-  tools: Record<string, any>,
+  allTools: Record<string, any>,
+  readOnlyTools: Record<string, any>,
   memory: any,
 ): Record<string, Agent> {
   const baseConfig = {
@@ -16,7 +21,6 @@ export function createSubagents(
   };
 
   return {
-    /** Reviews code for bugs, style, performance — read-focused */
     "code-reviewer": new Agent({
       ...baseConfig,
       id: "code-reviewer",
@@ -24,6 +28,7 @@ export function createSubagents(
       description:
         "Reviews code for bugs, security issues, style violations, and performance problems. " +
         "Returns a structured review with findings ranked by severity. " +
+        "READ-ONLY — cannot modify files or run commands. " +
         "Use when the user asks for code review, audit, or quality check.",
       instructions: `
 You are a senior code reviewer. When asked to review code:
@@ -39,12 +44,11 @@ You are a senior code reviewer. When asked to review code:
 
 Be thorough but practical — flag real problems, not nitpicks. Focus on correctness and security first.
       `,
-      tools,
+      tools: readOnlyTools,
       workspace,
       memory,
     }),
 
-    /** Explores and understands codebases — read-only navigation */
     "code-explorer": new Agent({
       ...baseConfig,
       id: "code-explorer",
@@ -52,6 +56,7 @@ Be thorough but practical — flag real problems, not nitpicks. Focus on correct
       description:
         "Explores codebases to answer questions about structure, architecture, and dependencies. " +
         "Reads files, searches for patterns, and traces call chains. " +
+        "READ-ONLY — cannot modify files or run commands. " +
         "Use when the user asks 'how does X work', 'where is Y defined', or 'what depends on Z'.",
       instructions: `
 You are a codebase navigator. When asked to explore code:
@@ -67,18 +72,18 @@ You are a codebase navigator. When asked to explore code:
 
 Be thorough. Your job is to understand, not to change anything.
       `,
-      tools,
+      tools: readOnlyTools,
       workspace,
       memory,
     }),
 
-    /** Makes actual changes — writes, edits, runs commands */
     "code-fixer": new Agent({
       ...baseConfig,
       id: "code-fixer",
       name: "Code Fixer",
       description:
         "Implements code changes — writes new files, edits existing code, and runs commands. " +
+        "Has FULL tool access including write, edit, delete, and bash. " +
         "Use when the user asks to fix a bug, add a feature, refactor code, or run a command. " +
         "Always verify changes by reading back modified files or running tests.",
       instructions: `
@@ -94,7 +99,7 @@ You are a hands-on software engineer. When asked to make changes:
 
 Follow existing code patterns. Don't introduce new dependencies without reason. Handle errors gracefully.
       `,
-      tools,
+      tools: allTools,
       workspace,
       memory,
     }),

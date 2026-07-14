@@ -174,6 +174,10 @@ async function main() {
       onTextChunk: (chunk: string) => renderer.writeChunk(chunk),
       onApprovalRequired: async (tool: { name: string; args: unknown }) =>
         promptApproval(tool.name, tool.args as Record<string, unknown>),
+      onDelegationStart: (agent: string, prompt: string) =>
+        renderer.showDelegationStart(agent, prompt),
+      onDelegationComplete: (agent: string, preview: string) =>
+        renderer.showDelegationComplete(agent, preview),
       onStepFinish: (reason: string) => renderer.showStepFinish(reason),
       onFinish: () => renderer.flush(),
       onError: (error: Error) => renderer.error(error.message),

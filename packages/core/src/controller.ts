@@ -25,6 +25,10 @@ export interface StreamCallbacks {
   onApprovalRequired?: (
     tool: { name: string; args: unknown },
   ) => Promise<boolean>;
+  /** Supervisor is about to delegate to a subagent */
+  onDelegationStart?: (agent: string, prompt: string) => void;
+  /** Subagent finished and returned results */
+  onDelegationComplete?: (agent: string, resultPreview: string) => void;
   onStepFinish?: (reason: string) => void;
   onFinish?: () => void;
   onError?: (error: Error) => void;
@@ -79,6 +83,8 @@ export class SailController {
       maxSteps = this.defaultMaxSteps(),
       onTextChunk,
       onApprovalRequired,
+      onDelegationStart,
+      onDelegationComplete,
       onStepFinish,
       onFinish,
       onError,
@@ -89,9 +95,11 @@ export class SailController {
 
     try {
       const agent = await getAgent();
-      const stream = await agent.stream(fullPrompt, {
+      // streamUntilIdle supports background subagent tasks (parallel execution)
+      const stream = await agent.streamUntilIdle(fullPrompt, {
         memory: { resource, thread: threadId },
         maxSteps,
+        toolCallConcurrency: 5,
         requireToolApproval: this.autoApprove || this.autoDeny
           ? undefined
           : async (ctx) => {
@@ -107,6 +115,21 @@ export class SailController {
               }
               return false; // We handled approval ourselves, don't double-pause
             },
+        delegation: onDelegationStart || onDelegationComplete ? {
+          onDelegationStart: async (ctx: any) => {
+            onDelegationStart?.(ctx.primitiveId ?? "unknown", ctx.prompt ?? "");
+            return { proceed: true };
+          },
+          onDelegationComplete: async (ctx: any) => {
+            const preview = typeof ctx.result === "string"
+              ? ctx.result.slice(0, 200)
+              : JSON.stringify(ctx.result).slice(0, 200);
+            onDelegationComplete?.(ctx.primitiveId ?? "unknown", preview);
+            if (ctx.error) {
+              return { feedback: `${ctx.primitiveId} failed: ${ctx.error}` };
+            }
+          },
+        } : undefined,
         onStepFinish: (step: any) => {
           const reason = step?.finishReason ?? step?.stepResult?.reason ?? "?";
           onStepFinish?.(reason);

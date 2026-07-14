@@ -130,6 +130,21 @@ export class Renderer {
     }
   }
 
+  /** Supervisor delegated to a subagent */
+  showDelegationStart(agent: string, prompt: string): void {
+    this.flush();
+    const names: Record<string, string> = { "code-reviewer": "reviewer", "code-explorer": "explorer", "code-fixer": "fixer" };
+    const short = names[agent] || agent;
+    process.stdout.write(chalk.dim(`\n  → ${short}: ${prompt.slice(0, 80)}\n`));
+  }
+
+  /** Subagent returned results */
+  showDelegationComplete(agent: string, preview: string): void {
+    const names: Record<string, string> = { "code-reviewer": "reviewer", "code-explorer": "explorer", "code-fixer": "fixer" };
+    const short = names[agent] || agent;
+    process.stdout.write(chalk.dim(`  ← ${short}: ${preview.slice(0, 80)}\n`));
+  }
+
   showStepFinish(reason: string): void {
     this.flush();
     if (reason !== "stop" && reason !== "end-turn" && reason !== "?") {

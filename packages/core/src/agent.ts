@@ -7,13 +7,31 @@ import { createSubagents } from "./subagents.js";
 let _agent: Agent | null = null;
 
 /** Get the supervisor agent instance with subagents (lazy init) */
+/** Read-only workspace tools (safe, no approval needed) */
+const READ_ONLY_TOOLS = new Set([
+  "mastra_workspace_read_file",
+  "mastra_workspace_grep",
+  "mastra_workspace_list_files",
+  "mastra_workspace_file_stat",
+  "mastra_workspace_search",
+]);
+
 export async function getAgent(): Promise<Agent> {
   if (_agent) return _agent;
 
   const workspace = createSailWorkspace();
-  const tools = await createWorkspaceTools(workspace);
+  const allTools = await createWorkspaceTools(workspace);
   const memory = createMemory();
-  const subagents = createSubagents(workspace, tools, memory);
+
+  // Split tools: read-only for reviewer/explorer, full set for fixer
+  const readOnlyTools: Record<string, any> = {};
+  for (const [name, tool] of Object.entries(allTools)) {
+    if (READ_ONLY_TOOLS.has(name)) {
+      readOnlyTools[name] = tool;
+    }
+  }
+
+  const subagents = createSubagents(workspace, allTools, readOnlyTools, memory);
 
   _agent = new Agent({
     id: "sail-agent",
@@ -51,10 +69,19 @@ You have specialised subagents you can delegate to:
 - Never run destructive commands without explicit user direction
 `,
     model: process.env.SAIL_MODEL || "anthropic/claude-sonnet-4-6",
-    tools,
+    tools: allTools,
     workspace,
     memory,
     agents: subagents,
+    // Enable parallel subagent execution: subagents run as background tasks
+    // so the supervisor can delegate to multiple agents concurrently.
+    backgroundTasks: {
+      tools: {
+        "code-reviewer": { enabled: true, timeoutMs: 300_000 },
+        "code-explorer": { enabled: true, timeoutMs: 300_000 },
+        "code-fixer": { enabled: true, timeoutMs: 600_000 },
+      },
+    },
   });
 
   return _agent;
