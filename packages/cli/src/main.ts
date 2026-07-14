@@ -21,7 +21,7 @@ import {
   applyProvider,
   getProvider,
 } from "./setup.js";
-import { Renderer } from "@sail/tui";
+import { Renderer, promptApproval } from "@sail/tui";
 import chalk from "chalk";
 
 const program = parseArgs(process.argv);
@@ -78,6 +78,10 @@ async function main() {
 
   const controller = new SailController();
 
+  // Wire approval flags
+  if (options.approve) controller.setAutoApprove(true);
+  if (options.noApprove) controller.setAutoDeny(true);
+
   // Load context files unless disabled
   let contextPrefix = "";
   if (!options.noContextFiles) {
@@ -93,6 +97,8 @@ async function main() {
 
   // ---- Non-interactive mode (-p) ----
   if (options.print) {
+    // Auto-approve in non-interactive mode (no user to prompt)
+    controller.setAutoApprove(true);
     const prompt = messages.join(" ") || "Hello";
     const fullPrompt = contextPrefix + prompt;
     console.log(chalk.dim("Thinking..."));
@@ -166,6 +172,8 @@ async function main() {
   function streamOpts() {
     return {
       onTextChunk: (chunk: string) => renderer.writeChunk(chunk),
+      onApprovalRequired: async (tool: { name: string; args: unknown }) =>
+        promptApproval(tool.name, tool.args as Record<string, unknown>),
       onStepFinish: (reason: string) => renderer.showStepFinish(reason),
       onFinish: () => renderer.flush(),
       onError: (error: Error) => renderer.error(error.message),
