@@ -1,4 +1,4 @@
-import { codingAgent } from "./agent.js";
+import { getAgent } from "./agent.js";
 
 export type AgentMode = "chat" | "plan" | "build";
 
@@ -60,7 +60,7 @@ export class SailController {
     const threadId = thread || `thread-${Date.now()}`;
 
     try {
-      const stream = await codingAgent.stream(fullPrompt, {
+      const stream = await getAgent().stream(fullPrompt, {
         memory: { resource, thread: threadId },
         maxSteps,
       });
@@ -94,7 +94,7 @@ export class SailController {
     const fullPrompt = this.buildPrompt(prompt);
     const threadId = thread || `thread-${Date.now()}`;
 
-    return codingAgent.generate(fullPrompt, {
+    return getAgent().generate(fullPrompt, {
       memory: { resource, thread: threadId },
       maxSteps,
     });

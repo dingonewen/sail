@@ -9,12 +9,18 @@ import {
 } from "./tools/index.js";
 import { createMemory } from "./memory.js";
 
-export const codingAgent = new Agent({
-  id: "sail-agent",
-  name: "Sail",
-  description:
-    "A terminal coding agent that reads, writes, edits, searches, and executes commands to help you build software.",
-  instructions: `
+let _agent: Agent | null = null;
+
+/** Get the coding agent instance (lazy init — DB is not touched until first call) */
+export function getAgent(): Agent {
+  if (_agent) return _agent;
+
+  _agent = new Agent({
+    id: "sail-agent",
+    name: "Sail",
+    description:
+      "A terminal coding agent that reads, writes, edits, searches, and executes commands to help you build software.",
+    instructions: `
 You are Sail, an expert software engineer and coding assistant running in the terminal.
 
 ## Your Capabilities
@@ -48,14 +54,17 @@ You are Sail, an expert software engineer and coding assistant running in the te
 - For bash commands, prefer non-destructive operations
 - Never run destructive commands (rm -rf, force push, etc.) without explicit user direction
 `,
-  model: process.env.SAIL_MODEL || "anthropic/claude-sonnet-4-6",
-  tools: {
-    readFileTool,
-    writeFileTool,
-    editFileTool,
-    searchTool,
-    bashTool,
-    listDirTool,
-  },
-  memory: createMemory(),
-});
+    model: process.env.SAIL_MODEL || "anthropic/claude-sonnet-4-6",
+    tools: {
+      readFileTool,
+      writeFileTool,
+      editFileTool,
+      searchTool,
+      bashTool,
+      listDirTool,
+    },
+    memory: createMemory(),
+  });
+
+  return _agent;
+}

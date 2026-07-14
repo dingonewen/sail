@@ -69,7 +69,7 @@ async function main() {
     try {
       const response = await controller.generate(fullPrompt, {
         resource: "default-user",
-        thread: options.noSession
+        thread: (options.session === false)
           ? undefined
           : createSession(options.name).threadId,
         maxSteps: 10,
@@ -122,7 +122,7 @@ async function main() {
       session = createSession(options.name);
     }
   } else {
-    session = options.noSession ? null : createSession(options.name);
+    session = (options.session === false) ? null : createSession(options.name);
   }
 
   // Enter the interactive TUI loop

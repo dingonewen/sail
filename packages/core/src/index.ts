@@ -1,4 +1,4 @@
-export { codingAgent } from "./agent.js";
+export { getAgent } from "./agent.js";
 export { createMemory } from "./memory.js";
 export { createObservability } from "./observability.js";
 export { SailController } from "./controller.js";

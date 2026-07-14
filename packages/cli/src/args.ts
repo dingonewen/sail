@@ -82,12 +82,12 @@ export function parseArgs(argv: string[]) {
       "Set thinking level: off, minimal, low, medium, high, xhigh, max"
     )
     .option(
-      "--no-context-files, -nc",
+      "--no-context-files",
       "Disable AGENTS.md and CLAUDE.md discovery and loading"
     )
     .option("--approve, -a", "Auto-approve all dangerous tool calls for this run")
     .option(
-      "--no-approve, -na",
+      "--no-approve",
       "Deny all dangerous tool calls for this run"
     )
     .option("--list-models [search]", "List available models (with optional search)")

@@ -1,13 +1,24 @@
 import { Memory } from "@mastra/memory";
 import { LibSQLStore } from "@mastra/libsql";
-import { resolve } from "node:path";
+import { resolve, dirname } from "node:path";
 import { homedir } from "node:os";
+import { mkdirSync, existsSync } from "node:fs";
+
+let _memory: Memory | null = null;
 
 export function createMemory(): Memory {
+  if (_memory) return _memory;
+
   const dbPath =
     process.env.SAIL_DB_PATH || resolve(homedir(), ".sail", "sail.db");
 
-  return new Memory({
+  // Ensure the parent directory exists
+  const dbDir = dirname(dbPath);
+  if (!existsSync(dbDir)) {
+    mkdirSync(dbDir, { recursive: true });
+  }
+
+  _memory = new Memory({
     storage: new LibSQLStore({
       id: "sail-memory",
       url: `file:${dbPath}`,
@@ -26,4 +37,6 @@ export function createMemory(): Memory {
       observationalMemory: true,
     },
   });
+
+  return _memory;
 }
