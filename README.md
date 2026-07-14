@@ -25,20 +25,18 @@ User → CLI (args, config, sessions)
                         → TUI (streaming markdown → ANSI, spinner, prompts)
 ```
 
-## Quick Start
+## Quick Start (from source)
 
 ```bash
-# Install
-npm install -g sail
-
-# Set your API key (any provider)
-export ANTHROPIC_API_KEY=sk-ant-...
-
-# Run
-sail "fix the auth bug"
+git clone https://github.com/dingonewen/sail.git
+cd sail
+pnpm install && pnpm build
+node packages/cli/dist/main.js "fix the auth bug"
 ```
 
 On first run, a setup wizard helps you pick a provider and enter an API key. Switch anytime with `/login`.
+
+> `npm install -g sail` is planned once the package is published to npm.
 
 ## Features
 
