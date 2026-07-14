@@ -46,7 +46,7 @@ export function parseArgs(argv: string[]) {
     .option("--print, -p", "Non-interactive mode: process prompt and exit")
     .option(
       "--mode <mode>",
-      "Output mode: text (default), json, or rpc",
+      "Output mode: text (default)",
       "text"
     )
     .option("--continue, -c", "Continue the most recent session")
