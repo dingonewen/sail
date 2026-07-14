@@ -9,6 +9,7 @@ import {
   forkSession,
   listSessions,
   touchSession,
+  renameSession,
 } from "./session.js";
 import { SailController } from "@sail/core";
 import type { AgentMode } from "@sail/core";
@@ -303,6 +304,7 @@ async function handleSlashCommand(
       );
       console.log("  /tree        Show the session tree");
       console.log("  /sessions    List recent sessions");
+      console.log("  /rename      Rename the current session");
       console.log("  /clear       Clear the screen");
       console.log("  /exit        Exit Sail\n");
       break;
@@ -399,6 +401,19 @@ async function handleSlashCommand(
       }
       console.log();
       break;
+
+    case "rename": {
+      const newName = args.join(" ");
+      if (!newName) {
+        console.log(c.subtext0("Usage: /rename <new name>"));
+      } else if (!session) {
+        console.log(c.peach("No active session to rename."));
+      } else {
+        const ok = renameSession(session.id, newName);
+        console.log(ok ? c.green(`Session renamed to: ${newName}`) : c.red("Session not found."));
+      }
+      break;
+    }
 
     case "clear":
       process.stdout.write("\x1b[2J\x1b[0f");

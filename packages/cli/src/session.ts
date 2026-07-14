@@ -135,6 +135,17 @@ export function touchSession(sessionId: string): void {
   }
 }
 
+/** Rename a session */
+export function renameSession(sessionId: string, newName: string): boolean {
+  const index = loadIndex();
+  const session = index.sessions.find((s) => s.id === sessionId);
+  if (!session) return false;
+  session.name = newName;
+  session.updatedAt = new Date().toISOString();
+  saveIndex(index);
+  return true;
+}
+
 /** Get the session tree for display */
 export function getSessionTree(): SessionMeta[] {
   const index = loadIndex();
