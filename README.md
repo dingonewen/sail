@@ -94,34 +94,46 @@ Options:
 
 ## Tools
 
-Sail ships with six built-in tools:
+Sail uses Mastra's Workspace tools (via `createWorkspaceTools()`), not hand-rolled:
 
 | Tool | Description | Requires Approval |
 |---|---|---|
-| `read_file` | Read file contents, with optional line range | No |
-| `write_file` | Create or overwrite a file | **Yes** |
-| `edit_file` | String replacement edit (exact match) | **Yes** |
-| `search` | grep-style regex search across files | No |
-| `bash` | Execute a shell command | **Yes** |
-| `list_dir` | List directory contents | No |
+| `mastra_workspace_read_file` | Read file contents | No |
+| `mastra_workspace_write_file` | Create or overwrite a file | **Yes** |
+| `mastra_workspace_edit_file` | String replacement edit | **Yes** |
+| `mastra_workspace_grep` | Regex search across files | No |
+| `mastra_workspace_execute_command` | Execute shell command (sandboxed) | **Yes** |
+| `mastra_workspace_list_files` | List directory contents | No |
+
+Additional tools: `delete`, `mkdir`, `file_stat`, `ast_edit`, `search`.
 
 ## Configuration
 
-Sail reads configuration from environment variables and `~/.sail/config.json`:
+Sail supports multiple providers simultaneously. Configuration lives in `~/.sail/config.json`:
 
 ```json
 {
-  "model": "anthropic/claude-sonnet-4-6",
-  "provider": "anthropic"
+  "defaultProvider": "anthropic",
+  "providers": {
+    "anthropic": {
+      "model": "anthropic/claude-sonnet-4-6",
+      "apiKey": "sk-ant-..."
+    },
+    "deepseek": {
+      "model": "deepseek/deepseek-chat",
+      "apiKey": "sk-..."
+    }
+  }
 }
 ```
+
+Switch providers at runtime with `/login anthropic` or `/login deepseek`.
 
 | Variable | Description |
 |---|---|
 | `SAIL_MODEL` | Model in `provider/model` format |
-| `SAIL_PROVIDER` | Provider name |
-| `SAIL_API_KEY` | API key for the provider |
 | `SAIL_DB_PATH` | Path to the LibSQL database file |
+| `SAIL_SEMANTIC_RECALL` | Set to `false` to disable semantic search |
 
 ## Project Context
 
@@ -132,7 +144,7 @@ Sail automatically discovers and loads these files (walking up from the current 
 
 Global instructions can be placed in `~/.sail/agent/*.md`.
 
-Disable with `--no-context-files` or `sail --no-context-files`.
+Disable with `--no-context-files`.
 
 ## Sessions
 
@@ -149,15 +161,43 @@ Use `/tree` in interactive mode to see your session tree, `--resume` to pick one
 
 ## Memory
 
-Sail uses Mastra's `Memory` for conversation persistence:
+Sail uses Mastra's `Memory` with all four processors:
 
-- **Thread-based history** — each session is a thread with full message history
-- **Working memory** — key facts persist across sessions for the same user
-- **Observational memory** — long conversations are automatically compacted to stay within context limits
+| Feature | Description | Status |
+|---|---|---|
+| **Working Memory** | Cross-session user context — remembers facts about you | ✅ Enabled |
+| **Observational Memory** | Auto-compacts long conversations to stay within context limits | ✅ Enabled |
+| **Semantic Recall** | Vector search across history — finds relevant past messages by meaning | ✅ Enabled (auto-detects embedder) |
+| **Memory Processors** | Custom message filter/transform pipeline | Post-MVP |
+
+## Sandbox
+
+Code execution runs through Mastra's `Workspace` + `LocalSandbox`:
+
+- **OS-level isolation** via seatbelt (macOS) or bubblewrap (Linux)
+- **Filesystem sandbox** — `LocalFilesystem` manages all file operations
+- **Network control** — configurable network access for sandboxed commands
+- **Timeout & env isolation** — no accidental secret exposure
+
+## Harness / Course Coverage
+
+How Sail maps to the agent engineering course curriculum:
+
+| Lesson | Concept | Mastra Primitive | Status |
+|---|---|---|---|
+| L1 | Agent Loop | `Agent.stream()` / `Agent.generate()` | ✅ Implemented |
+| L2 | Durable Execution | `DurableAgent`, Inngest/Temporal runners | ❌ Post-MVP |
+| L3 | Sandboxing | `Workspace` + `LocalSandbox` + `createWorkspaceTools()` | ✅ Implemented |
+| L4 | Memory / Context | `ObservationalMemory` + `WorkingMemory` + `SemanticRecall` | ✅ Implemented |
+| L5 | Router / Handoff | `SupervisorAgent` + `.network()` + A2A/ACP | ❌ Post-MVP |
+| L6 | Hierarchical Supervision | `Workflow.parallel()` / `.foreach()` + Supervisor | ❌ Post-MVP |
+| L7 | Human-in-the-Loop | `requireApproval` on dangerous tools | ⚠️ Config done, TUI pending |
+
+**MVP scope:** L1, L3, L4, L7 (approval config) are complete. L2, L5, L6 are architectural features available in Mastra but not yet wired in Sail — planned post-MVP.
 
 ## Permissions
 
-Dangerous tools (`bash`, `write_file`, `edit_file`) require user approval before executing. Sail uses Mastra's built-in `requireApproval` mechanism.
+Dangerous tools (`execute_command`, `write_file`, `edit_file`, `delete`) require user approval. Sail uses Mastra's `requireApproval` on workspace tools.
 
 For fully unattended runs, use `--approve` to auto-approve all tools. Use with caution.
 
@@ -179,7 +219,7 @@ node packages/cli/dist/main.js "hello"
 
 ## Contributing
 
-Contributions are welcome. Please read `CLAUDE.md` for project-specific rules and architecture notes.
+Contributions welcome. Read `CLAUDE.md` for project rules and architecture notes.
 
 ## License
 
