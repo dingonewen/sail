@@ -1,9 +1,16 @@
 import chalk from "chalk";
 import { createInterface } from "node:readline";
 
+const c = {
+  peach: chalk.hex("#fe640b"),
+  red: chalk.hex("#d20f39"),
+  green: chalk.hex("#40a02b"),
+  mauve: chalk.hex("#8839ef"),
+  subtext0: chalk.hex("#6c6f85"),
+};
+
 /**
  * Prompt the user to approve a dangerous tool execution.
- * Returns true if approved, false if denied.
  */
 export async function promptApproval(
   toolName: string,
@@ -11,29 +18,20 @@ export async function promptApproval(
 ): Promise<boolean> {
   console.log();
   console.log(
-    chalk.yellow.bold("⚠") +
-      " " +
-      chalk.bold(toolName) +
-      " " +
-      chalk.dim("requires approval")
+    c.peach.bold("⚠") + " " +
+    c.mauve.bold(toolName) + " " +
+    c.subtext0("requires approval")
   );
-  console.log(chalk.dim("  Parameters:"), JSON.stringify(params, null, 2));
+  console.log(c.subtext0("  Parameters:"), JSON.stringify(params, null, 2));
   console.log();
   console.log(
-    chalk.green("  [A]llow") +
-      "  " +
-      chalk.red("[D]eny") +
-      "  " +
-      chalk.yellow("[Y]es to all")
+    c.green("  [A]llow") + "  " +
+    c.red("[D]eny") + "  " +
+    c.peach("[Y]es to all")
   );
 
   const answer = await ask("  Choice: ");
-  const lower = answer.trim().toLowerCase();
-
-  if (lower === "a" || lower === "y" || lower === "yes") {
-    return true;
-  }
-  return false;
+  return ["a", "y", "yes"].includes(answer.trim().toLowerCase());
 }
 
 function ask(question: string): Promise<string> {

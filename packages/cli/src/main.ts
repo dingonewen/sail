@@ -24,6 +24,22 @@ import {
 import { Renderer, promptApproval } from "@sail/tui";
 import chalk from "chalk";
 
+// Catppuccin Latte
+const c = {
+  peach: chalk.hex("#fe640b"),
+  red: chalk.hex("#d20f39"),
+  green: chalk.hex("#40a02b"),
+  blue: chalk.hex("#1e66f5"),
+  sky: chalk.hex("#04a5e5"),
+  mauve: chalk.hex("#8839ef"),
+  pink: chalk.hex("#ea76cb"),
+  teal: chalk.hex("#179299"),
+  lavender: chalk.hex("#7287fd"),
+  text: chalk.hex("#4c4f69"),
+  subtext0: chalk.hex("#6c6f85"),
+  subtext1: chalk.hex("#5c5f77"),
+};
+
 const program = parseArgs(process.argv);
 const options = program.opts();
 const messages = program.args;
@@ -32,7 +48,7 @@ async function main() {
   // --list-models
   if (options.listModels !== undefined) {
     console.log(
-      chalk.yellow(
+      c.peach(
         "Model listing requires network access. Set SAIL_MODEL env var to configure the model."
       )
     );
@@ -62,7 +78,7 @@ async function main() {
     try {
       applyProvider(providerId, options.model, options.apiKey);
     } catch {
-      console.log(chalk.yellow(`Unknown provider: ${providerId}`));
+      console.log(c.peach(`Unknown provider: ${providerId}`));
       providerId = undefined;
     }
   }
@@ -101,7 +117,7 @@ async function main() {
     controller.setAutoApprove(true);
     const prompt = messages.join(" ") || "Hello";
     const fullPrompt = contextPrefix + prompt;
-    console.log(chalk.dim("Thinking..."));
+    console.log(c.subtext0("Thinking..."));
 
     try {
       const response = await controller.generate(fullPrompt, {
@@ -114,7 +130,7 @@ async function main() {
 
       console.log(response.text);
     } catch (error) {
-      console.error(chalk.red("Error:"), error);
+      console.error(c.red("Error:"), error);
       process.exit(1);
     }
     process.exit(0);
@@ -128,30 +144,30 @@ async function main() {
   if (options.fork) {
     session = forkSession(options.fork, options.name);
     if (!session) {
-      console.error(chalk.red(`Session not found: ${options.fork}`));
+      console.error(c.red(`Session not found: ${options.fork}`));
       process.exit(1);
     }
   } else if (options.resume) {
-    console.log(chalk.dim("Recent sessions:"));
+    console.log(c.subtext0("Recent sessions:"));
     const sessions = listSessions().slice(0, 10);
     for (const s of sessions) {
       console.log(
-        `  ${chalk.cyan(s.id.slice(0, 8))}  ${s.name}  ${chalk.dim(new Date(s.updatedAt).toLocaleString())}`
+        `  ${c.sky(s.id.slice(0, 8))}  ${s.name}  ${c.subtext0(new Date(s.updatedAt).toLocaleString())}`
       );
     }
     console.log(
-      chalk.dim("\nUse --session <id> to resume a specific session")
+      c.subtext0("\nUse --session <id> to resume a specific session")
     );
     process.exit(0);
   } else if (options.continue) {
     session = getLastSession();
     if (!session) {
       console.log(
-        chalk.yellow("No previous session found. Starting a new one.")
+        c.peach("No previous session found. Starting a new one.")
       );
       session = createSession(options.name);
     } else {
-      console.log(chalk.dim(`Continuing session: ${session.name}`));
+      console.log(c.subtext0(`Continuing session: ${session.name}`));
     }
   } else if (options.session) {
     session = getSession(options.session);
@@ -186,7 +202,7 @@ async function main() {
 
   // Enter the interactive TUI loop
   if (prompt) {
-    console.log(chalk.bold("Sail"), chalk.dim("·"), prompt);
+    console.log(c.text.bold("Sail"), c.subtext0("·"), prompt);
     console.log();
 
     try {
@@ -200,18 +216,18 @@ async function main() {
       console.log();
       if (session) touchSession(session.id);
     } catch (error) {
-      console.error(chalk.red("Error:"), error);
+      console.error(c.red("Error:"), error);
       process.exit(1);
     }
   } else {
     // No initial prompt — interactive readline loop
     console.log(
-      chalk.bold("Sail"),
-      chalk.dim(`v${program.version()}`)
+      c.text.bold("Sail"),
+      c.subtext0(`v${program.version()}`)
     );
-    console.log(chalk.dim("Type a message to start, or /help for commands."));
+    console.log(c.subtext0("Type a message to start, or /help for commands."));
     console.log(
-      chalk.dim(
+      c.subtext0(
         `Session: ${session?.name || "ephemeral"}  ·  Provider: ${activeProvider}  ·  Model: ${activeModel}`
       )
     );
@@ -222,7 +238,7 @@ async function main() {
     const rl = readline.createInterface({
       input: process.stdin,
       output: process.stdout,
-      prompt: chalk.green("> "),
+      prompt: c.green("> "),
     });
 
     rl.prompt();
@@ -251,7 +267,7 @@ async function main() {
         console.log();
         if (session) touchSession(session.id);
       } catch (error) {
-        console.error(chalk.red("Error:"), error);
+        console.error(c.red("Error:"), error);
       }
       rl.prompt();
     }
@@ -272,7 +288,7 @@ async function handleSlashCommand(
 
   switch (cmd) {
     case "help":
-      console.log(chalk.bold("\nCommands:"));
+      console.log(c.text.bold("\nCommands:"));
       console.log("  /help        Show this help");
       console.log("  /login       Switch provider or add a new one");
       console.log("  /model       Show or change the current model");
@@ -297,10 +313,10 @@ async function handleSlashCommand(
             setDefaultProvider(targetId);
             applyProvider(targetId);
             console.log(
-              chalk.green(`Switched to ${args[0]} (model: ${existing.model})`)
+              c.green(`Switched to ${args[0]} (model: ${existing.model})`)
             );
           } catch (e: any) {
-            console.log(chalk.red(`Error: ${e.message}`));
+            console.log(c.red(`Error: ${e.message}`));
           }
         } else {
           // Not saved — launch setup wizard
@@ -310,23 +326,23 @@ async function handleSlashCommand(
         // /login with no args — show current provider and list saved ones
         console.log();
         console.log(
-          chalk.bold("Default provider: ") +
+          c.text.bold("Default provider: ") +
             (config.defaultProvider
-              ? chalk.green(config.defaultProvider)
-              : chalk.dim("none"))
+              ? c.green(config.defaultProvider)
+              : c.subtext0("none"))
         );
         const saved = Object.entries(config.providers);
         if (saved.length > 0) {
           console.log();
-          console.log(chalk.bold("Saved providers:"));
+          console.log(c.text.bold("Saved providers:"));
           for (const [id, pc] of saved) {
-            const marker = id === config.defaultProvider ? chalk.green(" *") : " ";
-            console.log(`${marker} ${chalk.cyan(id)}  →  ${pc.model}`);
+            const marker = id === config.defaultProvider ? c.green(" *") : " ";
+            console.log(`${marker} ${c.sky(id)}  →  ${pc.model}`);
           }
-          console.log(chalk.dim("\n  * = default. Use /login <provider> to switch."));
+          console.log(c.subtext0("\n  * = default. Use /login <provider> to switch."));
         } else {
           console.log(
-            chalk.dim("No saved providers. Use /login <provider> to add one.")
+            c.subtext0("No saved providers. Use /login <provider> to add one.")
           );
         }
         console.log();
@@ -336,43 +352,43 @@ async function handleSlashCommand(
 
     case "model":
       console.log(
-        chalk.dim(`Current model: ${process.env.SAIL_MODEL || "default"}`)
+        c.subtext0(`Current model: ${process.env.SAIL_MODEL || "default"}`)
       );
       if (args[0]) {
         process.env.SAIL_MODEL = args[0];
-        console.log(chalk.green(`Model changed to: ${args[0]}`));
+        console.log(c.green(`Model changed to: ${args[0]}`));
       }
       break;
 
     case "mode":
-      console.log(chalk.dim(`Current mode: ${controller.mode}`));
-      console.log(chalk.dim("Modes: chat (default), plan, build"));
+      console.log(c.subtext0(`Current mode: ${controller.mode}`));
+      console.log(c.subtext0("Modes: chat (default), plan, build"));
       if (args[0]) {
         controller.switchMode(args[0] as AgentMode);
-        console.log(chalk.green(`Switched to mode: ${args[0]}`));
+        console.log(c.green(`Switched to mode: ${args[0]}`));
       }
       break;
 
     case "tree":
-      console.log(chalk.bold("\nSession tree:"));
+      console.log(c.text.bold("\nSession tree:"));
       const sessions = listSessions();
       for (const s of sessions.slice(0, 20)) {
         const prefix = s.parentId ? "  ├─" : "●";
         const marker =
-          s.id === session?.id ? chalk.green(" (current)") : "";
+          s.id === session?.id ? c.green(" (current)") : "";
         console.log(
-          `  ${prefix} ${chalk.cyan(s.id.slice(0, 8))}  ${s.name}${marker}  ${chalk.dim(new Date(s.updatedAt).toLocaleString())}`
+          `  ${prefix} ${c.sky(s.id.slice(0, 8))}  ${s.name}${marker}  ${c.subtext0(new Date(s.updatedAt).toLocaleString())}`
         );
       }
       console.log();
       break;
 
     case "sessions":
-      console.log(chalk.bold("\nRecent sessions:"));
+      console.log(c.text.bold("\nRecent sessions:"));
       for (const s of listSessions().slice(0, 10)) {
-        const marker = s.id === session?.id ? chalk.green(" *") : " ";
+        const marker = s.id === session?.id ? c.green(" *") : " ";
         console.log(
-          `${marker} ${chalk.cyan(s.id.slice(0, 8))}  ${s.name}  ${chalk.dim(new Date(s.updatedAt).toLocaleString())}`
+          `${marker} ${c.sky(s.id.slice(0, 8))}  ${s.name}  ${c.subtext0(new Date(s.updatedAt).toLocaleString())}`
         );
       }
       console.log();
@@ -383,12 +399,12 @@ async function handleSlashCommand(
       break;
 
     case "exit":
-      console.log(chalk.dim("Goodbye!"));
+      console.log(c.subtext0("Goodbye!"));
       process.exit(0);
 
     default:
       console.log(
-        chalk.yellow(
+        c.peach(
           `Unknown command: /${cmd}. Type /help for available commands.`
         )
       );
@@ -396,6 +412,6 @@ async function handleSlashCommand(
 }
 
 main().catch((error) => {
-  console.error(chalk.red("Fatal error:"), error);
+  console.error(c.red("Fatal error:"), error);
   process.exit(1);
 });

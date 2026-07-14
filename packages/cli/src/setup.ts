@@ -9,6 +9,16 @@ import {
 } from "./config.js";
 import chalk from "chalk";
 
+const c = {
+  peach: chalk.hex("#fe640b"),
+  red: chalk.hex("#d20f39"),
+  green: chalk.hex("#40a02b"),
+  sky: chalk.hex("#04a5e5"),
+  mauve: chalk.hex("#8839ef"),
+  text: chalk.hex("#4c4f69"),
+  subtext0: chalk.hex("#6c6f85"),
+};
+
 export interface ProviderInfo {
   id: string;
   name: string;
@@ -118,7 +128,7 @@ export async function runSetup(preferredProviderId?: string): Promise<SailConfig
     provider = getProvider(preferredProviderId);
     if (!provider) {
       console.log(
-        chalk.yellow(`Unknown provider '${preferredProviderId}'. Showing all options.`)
+        c.peach(`Unknown provider '${preferredProviderId}'. Showing all options.`)
       );
     }
   }
@@ -126,30 +136,30 @@ export async function runSetup(preferredProviderId?: string): Promise<SailConfig
   // If no preferred provider or not found, let user choose
   if (!provider) {
     console.log();
-    console.log(chalk.bold("Welcome to Sail!"));
-    console.log(chalk.dim("Let's set up your AI provider."));
+    console.log(c.text.bold("Welcome to Sail!"));
+    console.log(c.subtext0("Let's set up your AI provider."));
     console.log();
-    console.log(chalk.bold("Available providers:"));
+    console.log(c.text.bold("Available providers:"));
     for (let i = 0; i < PROVIDERS.length; i++) {
       const p = PROVIDERS[i];
       const saved = getProviderConfig(p.id);
       const status = saved
-        ? chalk.green(" (saved)")
+        ? c.green(" (saved)")
         : process.env[p.envVar]
-          ? chalk.green(" (key found in env)")
+          ? c.green(" (key found in env)")
           : "";
-      console.log(`  ${chalk.cyan(String(i + 1))}. ${p.name}${status}`);
+      console.log(`  ${c.sky(String(i + 1))}. ${p.name}${status}`);
     }
     console.log();
 
     const choice = await ask(
-      `Select a provider ${chalk.dim("(1-" + PROVIDERS.length + ")")}: `
+      `Select a provider ${c.subtext0("(1-" + PROVIDERS.length + ")")}: `
     );
     const idx = parseInt(choice) - 1;
     provider = PROVIDERS[idx] || PROVIDERS[0];
 
     if (!PROVIDERS[idx]) {
-      console.log(chalk.yellow(`Invalid choice, using ${provider.name}`));
+      console.log(c.peach(`Invalid choice, using ${provider.name}`));
     }
   }
 
@@ -159,19 +169,19 @@ export async function runSetup(preferredProviderId?: string): Promise<SailConfig
   if (existingKey) {
     const masked = existingKey.slice(0, 8) + "..." + existingKey.slice(-4);
     console.log(
-      chalk.dim(`Found ${provider.envVar} in environment: ${masked}`)
+      c.subtext0(`Found ${provider.envVar} in environment: ${masked}`)
     );
     console.log(
-      chalk.dim("Press Enter to use this key, or type a different one.")
+      c.subtext0("Press Enter to use this key, or type a different one.")
     );
   } else {
     console.log(
-      chalk.dim(
+      c.subtext0(
         `Set the ${provider.envVar} environment variable, or enter it below.`
       )
     );
   }
-  console.log(chalk.dim(`Get your key at: ${getKeyUrl(provider.id)}`));
+  console.log(c.subtext0(`Get your key at: ${getKeyUrl(provider.id)}`));
   const key = await ask(`${provider.envVar}: `);
   if (key) {
     process.env[provider.envVar] = key;
@@ -185,15 +195,15 @@ export async function runSetup(preferredProviderId?: string): Promise<SailConfig
   applyProvider(provider.id);
 
   console.log();
-  console.log(chalk.green(`✓ Configured! Provider: ${provider.name}`));
-  console.log(chalk.dim(`  Model: ${provider.defaultModel}`));
-  console.log(chalk.dim(`  Config saved to ~/.sail/config.json`));
+  console.log(c.green(`✓ Configured! Provider: ${provider.name}`));
+  console.log(c.subtext0(`  Model: ${provider.defaultModel}`));
+  console.log(c.subtext0(`  Config saved to ~/.sail/config.json`));
 
   const config = loadConfig();
   const savedProviders = Object.keys(config.providers);
   if (savedProviders.length > 1) {
-    console.log(chalk.dim(`  Saved providers: ${savedProviders.join(", ")}`));
-    console.log(chalk.dim(`  Default: ${config.defaultProvider}`));
+    console.log(c.subtext0(`  Saved providers: ${savedProviders.join(", ")}`));
+    console.log(c.subtext0(`  Default: ${config.defaultProvider}`));
   }
   console.log();
 
@@ -218,7 +228,7 @@ function getKeyUrl(providerId: string): string {
 /** List providers with both env-var and saved-config status */
 export function listProviders(): void {
   const config = loadConfig();
-  console.log(chalk.bold("\nSupported providers:\n"));
+  console.log(c.text.bold("\nSupported providers:\n"));
   for (const p of PROVIDERS) {
     const saved = config.providers[p.id];
     const isDefault = config.defaultProvider === p.id;
@@ -226,19 +236,19 @@ export function listProviders(): void {
 
     let status: string;
     if (saved && isDefault) {
-      status = chalk.green(" ✓ saved (default)");
+      status = c.green(" ✓ saved (default)");
     } else if (saved) {
-      status = chalk.green(" ✓ saved");
+      status = c.green(" ✓ saved");
     } else if (envSet) {
-      status = chalk.yellow(" env var set (not saved)");
+      status = c.peach(" env var set (not saved)");
     } else {
-      status = chalk.dim(" - not configured");
+      status = c.subtext0(" - not configured");
     }
 
-    const marker = isDefault ? chalk.bold("* ") : "  ";
+    const marker = isDefault ? c.text.bold("* ") : "  ";
     console.log(
-      `${marker}${chalk.cyan(p.id.padEnd(12))} ${p.name.padEnd(24)} ${p.envVar}${status}`
+      `${marker}${c.sky(p.id.padEnd(12))} ${p.name.padEnd(24)} ${p.envVar}${status}`
     );
   }
-  console.log(chalk.dim("\n  * = default provider. Run /login to switch.\n"));
+  console.log(c.subtext0("\n  * = default provider. Run /login to switch.\n"));
 }

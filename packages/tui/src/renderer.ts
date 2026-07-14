@@ -1,86 +1,77 @@
 import chalk from "chalk";
 
+// Catppuccin Latte palette
+const c = {
+  pink: chalk.hex("#ea76cb"),
+  mauve: chalk.hex("#8839ef"),
+  red: chalk.hex("#d20f39"),
+  peach: chalk.hex("#fe640b"),
+  yellow: chalk.hex("#df8e1d"),
+  green: chalk.hex("#40a02b"),
+  teal: chalk.hex("#179299"),
+  sky: chalk.hex("#04a5e5"),
+  sapphire: chalk.hex("#209fb5"),
+  blue: chalk.hex("#1e66f5"),
+  lavender: chalk.hex("#7287fd"),
+  rosewater: chalk.hex("#dc8a78"),
+  flamingo: chalk.hex("#dd7878"),
+  text: chalk.hex("#4c4f69"),
+  subtext0: chalk.hex("#6c6f85"),
+  surface0: chalk.hex("#ccd0da"),
+  mantle: chalk.hex("#e6e9ef"),
+};
+
+const dim = c.subtext0;
+const headingColors = [c.pink.bold, c.mauve.bold, c.blue.bold, c.teal.bold, c.peach.bold, c.lavender.bold];
+
 /**
  * Render a markdown line → terminal ANSI via chalk.
  */
 function renderLine(line: string, _prevLine: string, nextLineIsTableSep: boolean): string {
-  // ---- Code fence ----
-  if (/^```/.test(line)) return chalk.dim(line);
+  if (/^```/.test(line)) return dim(line);
 
-  // ---- ATX headings ----
-  const headingMatch = line.match(/^(#{1,6})\s+(.+)$/);
-  if (headingMatch) {
-    const level = headingMatch[1].length;
-    const text = headingMatch[2];
-    // Different colors per heading level
-    const colors = [chalk.bold.yellow, chalk.bold.green, chalk.bold.cyan, chalk.bold.blue, chalk.bold.magenta, chalk.bold];
-    return (colors[level - 1] || chalk.bold)(text);
-  }
+  const h = line.match(/^(#{1,6})\s+(.+)$/);
+  if (h) return (headingColors[h[1].length - 1] || chalk.bold)(h[2]);
 
-  // ---- Table rows ----
-  if (/^\|.+\|$/.test(line)) {
-    return renderTableRow(line, nextLineIsTableSep);
-  }
+  if (/^\|.+\|$/.test(line)) return renderTableRow(line, nextLineIsTableSep);
 
-  // ---- Ordered list ----
-  const listMatch = line.match(/^(\s*)(\d+\.)\s+(.+)$/);
-  if (listMatch) {
-    return listMatch[1] + chalk.dim(listMatch[2]) + " " + renderInline(listMatch[3]);
-  }
+  const ol = line.match(/^(\s*)(\d+\.)\s+(.+)$/);
+  if (ol) return ol[1] + dim(ol[2]) + " " + renderInline(ol[3]);
 
-  // ---- Unordered list ----
-  const ulMatch = line.match(/^(\s*)[-*]\s+(.+)$/);
-  if (ulMatch) {
-    return ulMatch[1] + chalk.cyan("•") + " " + renderInline(ulMatch[2]);
-  }
+  const ul = line.match(/^(\s*)[-*]\s+(.+)$/);
+  if (ul) return ul[1] + c.teal("•") + " " + renderInline(ul[2]);
 
-  // ---- Blockquote ----
-  const bqMatch = line.match(/^>\s?(.+)$/);
-  if (bqMatch) {
-    return chalk.dim("│ ") + chalk.italic(renderInline(bqMatch[1]));
-  }
+  const bq = line.match(/^>\s?(.+)$/);
+  if (bq) return dim("│ ") + c.surface0.italic(renderInline(bq[1]));
 
-  // ---- Horizontal rule ----
-  if (/^(-{3,}|\*{3,}|_{3,})\s*$/.test(line) && !/^\|/.test(line)) {
-    return chalk.dim("─".repeat(40));
-  }
+  if (/^(-{3,}|\*{3,}|_{3,})\s*$/.test(line) && !/^\|/.test(line))
+    return dim("─".repeat(40));
 
   return renderInline(line);
 }
 
-/** Render a pipe-table row with alternating column colors */
-function renderTableRow(line: string, isSeparatorRow: boolean): string {
-  // Split by |, preserving leading/trailing pipes
-  const cells = line.split("|");
-  // Remove first and last empty elements from leading/trailing |
-  const inner = cells.slice(1, -1);
-  if (inner.length === 0) return chalk.dim(line);
-
-  const rendered = inner.map((cell, i) => {
-    const trimmed = cell.trim();
-    if (isSeparatorRow) {
-      // Separator: |------|:----|
-      return chalk.dim(trimmed || "---");
-    }
-    // Alternating colors for readability
-    const styled = renderInline(trimmed);
-    return i % 2 === 0 ? styled : chalk.dim(styled);
+function renderTableRow(line: string, isSep: boolean): string {
+  const inner = line.split("|").slice(1, -1);
+  if (!inner.length) return dim(line);
+  const cols = inner.map((cell, i) => {
+    const t = cell.trim();
+    if (isSep) return dim(t || "---");
+    const styled = renderInline(t);
+    return i % 2 === 0 ? styled : c.surface0(styled);
   });
-
-  return "│ " + rendered.join(chalk.dim(" │ ")) + " │";
+  return "│ " + cols.join(dim(" │ ")) + " │";
 }
 
-/** Render inline formatting only (bold, code, italic, links, etc.) */
 function renderInline(text: string): string {
   return text
     .replace(/\*\*(.+?)\*\*/g, (_, t) => chalk.bold(t))
     .replace(/__(.+?)__/g, (_, t) => chalk.bold(t))
-    .replace(/~~(.+?)~~/g, (_, t) => chalk.strikethrough(t))
-    .replace(/`([^`\n]+)`/g, (_, t) => chalk.yellow(t))
-    .replace(/(?<!\*)\*([^*\n]+)\*(?!\*)/g, (_, t) => chalk.italic(t))
+    .replace(/~~(.+?)~~/g, (_, t) => c.red.strikethrough(t))
+    .replace(/`([^`\n]+)`/g, (_, t) => c.peach(t))
+    .replace(/(?<!\*)\*([^*\n]+)\*(?!\*)/g, (_, t) => c.sky.italic(t))
     .replace(/\[([^\]]+)\]\(([^)\s]+)\)/g, (_, t, u) =>
-      chalk.underline.blue(t) + chalk.dim(` (${u})`))
-    .replace(/!\[([^\]]*)\]\(([^)]+)\)/g, (_, alt) => chalk.dim(`[img: ${alt || "image"}]`));
+      c.blue.underline(t) + dim(` (${u})`))
+    .replace(/!\[([^\]]*)\]\(([^)]+)\)/g, (_, alt) => dim(`[img: ${alt || "image"}]`));
 }
 
 /**
@@ -103,9 +94,9 @@ export class Renderer {
       // Code fence toggle
       if (rawLine.trimStart().startsWith("```")) {
         this.inCodeBlock = !this.inCodeBlock;
-        process.stdout.write(chalk.dim(rawLine) + "\n");
+        process.stdout.write(c.surface0(rawLine) + "\n");
       } else if (this.inCodeBlock) {
-        process.stdout.write(chalk.dim(rawLine) + "\n");
+        process.stdout.write(c.surface0(rawLine) + "\n");
       } else {
         // Peek next line for table context
         const nextNl = this.buf.indexOf("\n");
@@ -122,7 +113,7 @@ export class Renderer {
   flush(): void {
     if (this.buf.length > 0) {
       if (this.inCodeBlock) {
-        process.stdout.write(chalk.dim(this.buf));
+        process.stdout.write(c.surface0(this.buf));
       } else {
         process.stdout.write(renderLine(this.buf, "", false));
       }
@@ -130,30 +121,28 @@ export class Renderer {
     }
   }
 
-  /** Supervisor delegated to a subagent */
   showDelegationStart(agent: string, prompt: string): void {
     this.flush();
     const names: Record<string, string> = { "code-reviewer": "reviewer", "code-explorer": "explorer", "code-fixer": "fixer" };
     const short = names[agent] || agent;
-    process.stdout.write(chalk.dim(`\n  → ${short}: ${prompt.slice(0, 80)}\n`));
+    process.stdout.write(c.rosewater(`\n  → ${short}: ${prompt.slice(0, 80)}\n`));
   }
 
-  /** Subagent returned results */
   showDelegationComplete(agent: string, preview: string): void {
     const names: Record<string, string> = { "code-reviewer": "reviewer", "code-explorer": "explorer", "code-fixer": "fixer" };
     const short = names[agent] || agent;
-    process.stdout.write(chalk.dim(`  ← ${short}: ${preview.slice(0, 80)}\n`));
+    process.stdout.write(c.green(`  ← ${short}: ${preview.slice(0, 80)}\n`));
   }
 
   showStepFinish(reason: string): void {
     this.flush();
     if (reason !== "stop" && reason !== "end-turn" && reason !== "?") {
-      process.stdout.write(chalk.dim(` [${reason}]`));
+      process.stdout.write(dim(` [${reason}]`));
     }
   }
 
   error(message: string): void {
     this.flush();
-    process.stderr.write(chalk.red(`\n  Error: ${message}\n`));
+    process.stderr.write(c.red(`\n  Error: ${message}\n`));
   }
 }
