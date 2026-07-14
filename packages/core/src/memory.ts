@@ -33,8 +33,14 @@ export function createMemory(): Memory {
         scope: "resource",
       },
 
-      // Automatic memory compaction for long conversations
-      observationalMemory: true,
+      // Automatic memory compaction for long conversations.
+      // Mastra hardcodes google/gemini-2.5-flash when set to `true`,
+      // so we pass the same model the user configured for the agent.
+      // If no model is set (e.g. before setup wizard), skip compaction
+      // rather than falling back to a provider the user may not have.
+      observationalMemory: process.env.SAIL_MODEL
+        ? { model: process.env.SAIL_MODEL }
+        : false,
     },
   });
 
