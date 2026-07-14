@@ -14,6 +14,7 @@ const MODE_INSTRUCTIONS: Record<AgentMode, string> = {
 export interface StreamCallbacks {
   onTextChunk?: (chunk: string) => void;
   onStepFinish?: (reason: string) => void;
+  onFinish?: () => void;
   onError?: (error: Error) => void;
 }
 
@@ -50,6 +51,7 @@ export class SailController {
       maxSteps = 25,
       onTextChunk,
       onStepFinish,
+      onFinish,
       onError,
     } = options;
 
@@ -72,6 +74,7 @@ export class SailController {
         onTextChunk?.(chunk);
       }
 
+      onFinish?.();
       return await stream;
     } catch (error) {
       onError?.(error as Error);

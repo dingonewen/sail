@@ -167,6 +167,7 @@ async function main() {
     return {
       onTextChunk: (chunk: string) => renderer.writeChunk(chunk),
       onStepFinish: (reason: string) => renderer.showStepFinish(reason),
+      onFinish: () => renderer.flush(),
       onError: (error: Error) => renderer.error(error.message),
     };
   }
