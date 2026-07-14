@@ -3,6 +3,9 @@ export { createMemory } from "./memory.js";
 export { createObservability } from "./observability.js";
 export { SailController } from "./controller.js";
 export type { AgentMode } from "./controller.js";
+export { createSailWorkspace } from "./workspace.js";
+// Legacy hand-rolled tools (no longer used by the agent;
+// Mastra workspace tools are used instead via createWorkspaceTools)
 export {
   readFileTool,
   writeFileTool,

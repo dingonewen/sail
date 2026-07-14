@@ -1,19 +1,15 @@
 import { Agent } from "@mastra/core/agent";
-import {
-  readFileTool,
-  writeFileTool,
-  editFileTool,
-  searchTool,
-  bashTool,
-  listDirTool,
-} from "./tools/index.js";
+import { createWorkspaceTools } from "@mastra/core/workspace";
 import { createMemory } from "./memory.js";
+import { createSailWorkspace } from "./workspace.js";
 
 let _agent: Agent | null = null;
 
 /** Get the coding agent instance (lazy init — DB is not touched until first call) */
-export function getAgent(): Agent {
+export async function getAgent(): Promise<Agent> {
   if (_agent) return _agent;
+
+  const workspace = createSailWorkspace();
 
   _agent = new Agent({
     id: "sail-agent",
@@ -26,7 +22,7 @@ You are Sail, an expert software engineer and coding assistant running in the te
 ## Your Capabilities
 - Read, write, and edit files on the user's filesystem
 - Search code with regex patterns
-- Execute shell commands
+- Execute shell commands (in an isolated sandbox)
 - Navigate and explore directories
 
 ## How You Work
@@ -49,20 +45,14 @@ You are Sail, an expert software engineer and coding assistant running in the te
 - Ask clarifying questions when the request is ambiguous
 
 ## Safety
-- You have dangerous tools (bash, write_file, edit_file) that require user approval
+- Dangerous tools (execute_command, write_file, edit_file, delete) require user approval
 - The user will be prompted to approve each dangerous operation
-- For bash commands, prefer non-destructive operations
+- For shell commands, prefer non-destructive operations
 - Never run destructive commands (rm -rf, force push, etc.) without explicit user direction
 `,
     model: process.env.SAIL_MODEL || "anthropic/claude-sonnet-4-6",
-    tools: {
-      readFileTool,
-      writeFileTool,
-      editFileTool,
-      searchTool,
-      bashTool,
-      listDirTool,
-    },
+    tools: await createWorkspaceTools(workspace),
+    workspace,
     memory: createMemory(),
   });
 

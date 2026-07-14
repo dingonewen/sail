@@ -60,7 +60,8 @@ export class SailController {
     const threadId = thread || `thread-${Date.now()}`;
 
     try {
-      const stream = await getAgent().stream(fullPrompt, {
+      const agent = await getAgent();
+      const stream = await agent.stream(fullPrompt, {
         memory: { resource, thread: threadId },
         maxSteps,
       });
@@ -94,7 +95,8 @@ export class SailController {
     const fullPrompt = this.buildPrompt(prompt);
     const threadId = thread || `thread-${Date.now()}`;
 
-    return getAgent().generate(fullPrompt, {
+    const agent = await getAgent();
+    return agent.generate(fullPrompt, {
       memory: { resource, thread: threadId },
       maxSteps,
     });
