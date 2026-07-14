@@ -29,16 +29,10 @@ const PROVIDERS: ProviderInfo[] = [
     defaultModel: "google/gemini-pro",
   },
   {
-    id: "groq",
-    name: "Groq",
-    envVar: "GROQ_API_KEY",
-    defaultModel: "groq/llama-3.3-70b",
-  },
-  {
-    id: "mistral",
-    name: "Mistral",
-    envVar: "MISTRAL_API_KEY",
-    defaultModel: "mistral/mistral-large",
+    id: "deepseek",
+    name: "DeepSeek",
+    envVar: "DEEPSEEK_API_KEY",
+    defaultModel: "deepseek/deepseek-chat",
   },
 ];
 
@@ -157,10 +151,8 @@ function getKeyUrl(providerId: string): string {
       return "https://platform.openai.com/api-keys";
     case "google":
       return "https://aistudio.google.com/apikey";
-    case "groq":
-      return "https://console.groq.com/keys";
-    case "mistral":
-      return "https://console.mistral.ai/api-keys";
+    case "deepseek":
+      return "https://platform.deepseek.com/api_keys";
     default:
       return "";
   }
