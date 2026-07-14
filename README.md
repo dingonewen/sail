@@ -31,16 +31,22 @@ User → CLI (args, config, sessions)
 git clone https://github.com/dingonewen/sail.git
 cd sail
 pnpm install && pnpm build
-node packages/cli/dist/main.js "fix the auth bug"
+node packages/cli/dist/main.js
 ```
 
-On first run, a setup wizard helps you pick a provider and enter an API key. Switch anytime with `/login`.
+On first run, a setup wizard prompts you to pick a provider and enter an API key. Type a message to start coding, or pass a prompt as an argument:
+
+```bash
+node packages/cli/dist/main.js "explain the auth module"
+```
+
+Switch provider anytime with `/login`.
 
 > `npm install -g sail` is planned once the package is published to npm.
 
 ## Features
 
-### Supervisor + Subagents (L5)
+### Supervisor + Subagents
 
 ```
 Supervisor (Sail)
@@ -55,7 +61,7 @@ Supervisor (Sail)
 - **Delegation visibility** — spinner + `→ explorer` / `← explorer` inline display
 - **Delegation hooks** — `onDelegationStart` / `onDelegationComplete` for quality control
 
-### Memory (L4)
+### Memory
 
 | Processor | What it does |
 |---|---|
@@ -68,7 +74,7 @@ Supervisor (Sail)
 - Embedder auto-detected from provider (OpenAI → text-embedding-3-small, Google → gemini-embedding-001)
 - Disable semantic recall with `SAIL_SEMANTIC_RECALL=false`
 
-### Sandbox (L3)
+### Sandbox
 
 Code execution runs through Mastra's `Workspace` + `LocalSandbox`:
 
@@ -76,7 +82,7 @@ Code execution runs through Mastra's `Workspace` + `LocalSandbox`:
 - **LocalFilesystem** manages all file operations
 - **Dangerous tools require approval** — no silent execution
 
-### Human-in-the-Loop (L7)
+### Human-in-the-Loop
 
 ```
 ⚠ execute_command requires approval
@@ -156,18 +162,6 @@ Options:
   --help, -h                    Show help
   --version, -v                 Show version
 ```
-
-## Harness Coverage
-
-| Lesson | Concept | Mastra Primitive | Status |
-|---|---|---|---|
-| L1 | Agent Loop | `Agent.streamUntilIdle()` | ✅ |
-| L2 | Durable Execution | `DurableAgent` | ❌ Post-MVP |
-| L3 | Sandboxing | `Workspace` + `LocalSandbox` | ✅ |
-| L4 | Memory / Context | Working + Observational + SemanticRecall | ✅ |
-| L5 | Router / Handoff | `Agent.agents` + delegation hooks | ✅ |
-| L6 | Hierarchical Supervision | `Workflow.parallel()` | ❌ Post-MVP |
-| L7 | Human-in-the-Loop | `requireToolApproval` + approval UI | ✅ |
 
 ## Development
 
