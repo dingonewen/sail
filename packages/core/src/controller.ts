@@ -13,16 +13,10 @@ const MODE_INSTRUCTIONS: Record<AgentMode, string> = {
 /** Events emitted during agent streaming */
 export interface StreamCallbacks {
   onTextChunk?: (chunk: string) => void;
-  onToolCall?: (tool: { name: string; args: unknown }) => void;
-  onToolResult?: (tool: { name: string; result: unknown }) => void;
-  onStepFinish?: (step: { text: string; toolCalls: unknown[]; finishReason: string }) => void;
+  onStepFinish?: (reason: string) => void;
   onError?: (error: Error) => void;
 }
 
-/**
- * Controller that wraps the coding agent.
- * Uses Mastra's fullStream to capture tool calls, step events, and text.
- */
 export class SailController {
   private currentMode: AgentMode = "chat";
 
@@ -42,7 +36,6 @@ export class SailController {
     return `${modeInstructions}\n\n${userPrompt}`;
   }
 
-  /** Run the agent in streaming mode — captures text + tool calls */
   async stream(
     prompt: string,
     options: {
@@ -56,8 +49,6 @@ export class SailController {
       thread,
       maxSteps = 25,
       onTextChunk,
-      onToolCall,
-      onToolResult,
       onStepFinish,
       onError,
     } = options;
@@ -70,48 +61,15 @@ export class SailController {
       const stream = await agent.stream(fullPrompt, {
         memory: { resource, thread: threadId },
         maxSteps,
+        onStepFinish: (step: any) => {
+          const reason = step?.finishReason ?? step?.stepResult?.reason ?? "?";
+          onStepFinish?.(reason);
+        },
       });
 
-      // Use fullStream to capture all event types
-      for await (const event of stream.fullStream) {
-        switch (event.type) {
-          case "text-delta": {
-            onTextChunk?.((event as any).textDelta ?? "");
-            break;
-          }
-          case "tool-call": {
-            onToolCall?.({
-              name: (event as any).toolName ?? "unknown",
-              args: (event as any).args ?? {},
-            });
-            break;
-          }
-          case "tool-result": {
-            onToolResult?.({
-              name: (event as any).toolName ?? "unknown",
-              result: (event as any).result ?? {},
-            });
-            break;
-          }
-          case "step-finish": {
-            onStepFinish?.({
-              text: (event as any).text ?? "",
-              toolCalls: (event as any).toolCalls ?? [],
-              finishReason: (event as any).finishReason ?? "unknown",
-            });
-            break;
-          }
-          case "error": {
-            const err = new Error((event as any).error ?? "Unknown stream error");
-            onError?.(err);
-            break;
-          }
-        }
-      }
-
-      // Drain textStream to ensure completion
-      for await (const _ of stream.textStream) {
-        // already consumed via fullStream
+      // textStream is the AI SDK native text stream — proven to work
+      for await (const chunk of stream.textStream) {
+        onTextChunk?.(chunk);
       }
 
       return await stream;
@@ -121,7 +79,6 @@ export class SailController {
     }
   }
 
-  /** Run the agent in non-streaming mode (for -p flag) */
   async generate(
     prompt: string,
     options: {

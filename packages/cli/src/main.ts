@@ -161,19 +161,12 @@ async function main() {
   const activeProvider = currentConfig.defaultProvider || "none";
   const activeModel = currentConfig.providers[activeProvider]?.model || "default";
 
-  // Shared renderer for tool call observability
   const renderer = new Renderer();
 
-  /** Build stream callbacks wired to the renderer */
-  function sc() {
+  function streamOpts() {
     return {
       onTextChunk: (chunk: string) => renderer.writeChunk(chunk),
-      onToolCall: (tool: { name: string; args: unknown }) =>
-        renderer.showToolCall(tool.name, tool.args),
-      onToolResult: (tool: { name: string; result: unknown }) =>
-        renderer.showToolResult(tool.name, tool.result),
-      onStepFinish: (step: { finishReason: string }) =>
-        renderer.showStepFinish(step.finishReason),
+      onStepFinish: (reason: string) => renderer.showStepFinish(reason),
       onError: (error: Error) => renderer.error(error.message),
     };
   }
@@ -188,7 +181,7 @@ async function main() {
       await controller.stream(initialPrompt, {
         resource: "default-user",
         thread: session?.threadId,
-        ...sc(),
+        ...streamOpts(),
       });
 
       console.log();
@@ -240,7 +233,7 @@ async function main() {
         await controller.stream(input, {
           resource: "default-user",
           thread: session?.threadId,
-          ...sc(),
+          ...streamOpts(),
         });
         console.log();
         if (session) touchSession(session.id);
