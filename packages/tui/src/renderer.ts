@@ -50,6 +50,14 @@ function renderLine(line: string, _prevLine: string, nextLineIsTableSep: boolean
   return renderInline(line);
 }
 
+function extractText(raw: string): string {
+  try {
+    const obj = JSON.parse(raw);
+    if (typeof obj.text === "string") return obj.text;
+  } catch {}
+  return raw;
+}
+
 function renderTableRow(line: string, isSep: boolean): string {
   const inner = line.split("|").slice(1, -1);
   if (!inner.length) return dim(line);
@@ -79,11 +87,45 @@ function renderInline(text: string): string {
  * State machine: tracks code fences across chunks.
  * Flushes line-by-line: each complete line is rendered immediately.
  */
+const SPINNER = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"];
+
 export class Renderer {
   private buf = "";
   private inCodeBlock = false;
+  private spinnerIdx = 0;
+  private spinnerActive = false;
+  private spinnerTimer: NodeJS.Timeout | null = null;
+  private lastActivity = 0;
+
+  /** Start the thinking spinner (public for external restart) */
+  startSpinner(): void {
+    if (this.spinnerActive) return;
+    this.spinnerActive = true;
+    // Show initial spinner
+    process.stdout.write(c.subtext0(SPINNER[0]));
+    this.lastActivity = Date.now();
+    this.spinnerTimer = setInterval(() => {
+      if (!this.spinnerActive) return;
+      // Clear spinner if nothing happened for a while
+      this.spinnerIdx = (this.spinnerIdx + 1) % SPINNER.length;
+      process.stdout.write("\r" + c.subtext0(SPINNER[this.spinnerIdx]) + " ");
+    }, 80);
+  }
+
+  /** Stop the spinner (public for external control) */
+  stopSpinner(): void {
+    if (!this.spinnerActive) return;
+    this.spinnerActive = false;
+    if (this.spinnerTimer) {
+      clearInterval(this.spinnerTimer);
+      this.spinnerTimer = null;
+    }
+    // Clear the spinner from the line
+    process.stdout.write("\r\x1b[K");
+  }
 
   writeChunk(chunk: string): void {
+    this.stopSpinner();
     this.buf += chunk;
 
     let nl = this.buf.indexOf("\n");
@@ -91,14 +133,12 @@ export class Renderer {
       const rawLine = this.buf.slice(0, nl);
       this.buf = this.buf.slice(nl + 1);
 
-      // Code fence toggle
       if (rawLine.trimStart().startsWith("```")) {
         this.inCodeBlock = !this.inCodeBlock;
         process.stdout.write(c.surface0(rawLine) + "\n");
       } else if (this.inCodeBlock) {
         process.stdout.write(c.surface0(rawLine) + "\n");
       } else {
-        // Peek next line for table context
         const nextNl = this.buf.indexOf("\n");
         const nextLine = nextNl >= 0 ? this.buf.slice(0, nextNl) : "";
         const nextIsSep = /^\|[\s\-:|]+\|$/.test(nextLine);
@@ -122,26 +162,32 @@ export class Renderer {
   }
 
   showDelegationStart(agent: string, prompt: string): void {
+    this.stopSpinner();
     this.flush();
     const names: Record<string, string> = { "code-reviewer": "reviewer", "code-explorer": "explorer", "code-fixer": "fixer" };
     const short = names[agent] || agent;
-    process.stdout.write(c.rosewater(`\n  → ${short}: ${prompt.slice(0, 80)}\n`));
+    process.stdout.write(c.rosewater(`\n  → ${short}: ${prompt}\n`));
+    this.startSpinner();
   }
 
   showDelegationComplete(agent: string, preview: string): void {
+    this.stopSpinner();
     const names: Record<string, string> = { "code-reviewer": "reviewer", "code-explorer": "explorer", "code-fixer": "fixer" };
     const short = names[agent] || agent;
-    process.stdout.write(c.green(`  ← ${short}: ${preview.slice(0, 80)}\n`));
+    const text = extractText(preview);
+    process.stdout.write(c.green(`  ← ${short}: ${text}\n`));
+    this.startSpinner();
   }
 
   showStepFinish(reason: string): void {
+    this.stopSpinner();
     this.flush();
-    if (reason !== "stop" && reason !== "end-turn" && reason !== "?") {
-      process.stdout.write(dim(` [${reason}]`));
-    }
+    if (reason === "error") process.stdout.write(c.red(` [error]`));
+    else if (reason === "length") process.stdout.write(c.peach(` [truncated]`));
   }
 
   error(message: string): void {
+    this.stopSpinner();
     this.flush();
     process.stderr.write(c.red(`\n  Error: ${message}\n`));
   }

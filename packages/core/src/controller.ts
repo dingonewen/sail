@@ -126,8 +126,8 @@ export class SailController {
           },
           onDelegationComplete: async (ctx: any) => {
             const preview = typeof ctx.result === "string"
-              ? ctx.result.slice(0, 200)
-              : JSON.stringify(ctx.result).slice(0, 200);
+              ? ctx.result
+              : JSON.stringify(ctx.result);
             onDelegationComplete?.(ctx.primitiveId ?? "unknown", preview);
             recordDelegation(ctx.primitiveId ?? "?", "complete", preview);
             if (ctx.error) {

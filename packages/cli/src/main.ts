@@ -188,15 +188,19 @@ async function main() {
   function streamOpts() {
     return {
       onTextChunk: (chunk: string) => renderer.writeChunk(chunk),
-      onApprovalRequired: async (tool: { name: string; args: unknown }) =>
-        promptApproval(tool.name, tool.args as Record<string, unknown>),
+      onApprovalRequired: async (tool: { name: string; args: unknown }) => {
+        renderer.stopSpinner?.(); // stop spinner during approval prompt
+        const result = await promptApproval(tool.name, tool.args as Record<string, unknown>);
+        renderer.startSpinner();
+        return result;
+      },
       onDelegationStart: (agent: string, prompt: string) =>
         renderer.showDelegationStart(agent, prompt),
       onDelegationComplete: (agent: string, preview: string) =>
         renderer.showDelegationComplete(agent, preview),
       onStepFinish: (reason: string) => renderer.showStepFinish(reason),
-      onFinish: () => renderer.flush(),
-      onError: (error: Error) => renderer.error(error.message),
+      onFinish: () => { renderer.flush(); renderer.stopSpinner?.(); },
+      onError: (error: Error) => { renderer.error(error.message); renderer.stopSpinner?.(); },
     };
   }
 
@@ -207,6 +211,7 @@ async function main() {
 
     try {
       const initialPrompt = contextPrefix + prompt;
+      renderer.startSpinner();
       await controller.stream(initialPrompt, {
         resource: "default-user",
         thread: session?.threadId,
@@ -259,6 +264,7 @@ async function main() {
 
       try {
         console.log();
+        renderer.startSpinner();
         await controller.stream(input, {
           resource: "default-user",
           thread: session?.threadId,
