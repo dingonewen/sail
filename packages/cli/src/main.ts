@@ -13,7 +13,14 @@ import {
 import { SailController } from "@sail/core";
 import type { AgentMode } from "@sail/core";
 import { loadContextFiles } from "./context.js";
-import { isConfigured, runSetup, listProviders } from "./setup.js";
+import {
+  isConfigured,
+  isProviderConfigured,
+  runSetup,
+  listProviders,
+  applyProvider,
+  getProvider,
+} from "./setup.js";
 import chalk from "chalk";
 
 const program = parseArgs(process.argv);
@@ -46,17 +53,47 @@ async function main() {
     process.exit(0);
   }
 
-  // Apply model override from CLI
+  // Resolve provider and model
+  let providerId = options.provider || config.provider;
+
+  // Apply model from CLI (overrides provider default)
   if (options.model) {
     process.env.SAIL_MODEL = options.model;
+    // Extract provider from model string (e.g., "openai/gpt-5.5" → "openai")
+    const modelProvider = options.model.split("/")[0];
+    if (modelProvider && getProvider(modelProvider)) {
+      providerId = modelProvider;
+    }
+  } else if (providerId) {
+    // Apply the provider's default model
+    try {
+      applyProvider(providerId);
+    } catch {
+      console.log(chalk.yellow(`Unknown provider: ${providerId}`));
+      providerId = undefined;
+    }
+  }
+
+  // Apply API key from CLI flag
+  if (options.apiKey && providerId) {
+    const provider = getProvider(providerId);
+    if (provider) {
+      process.env[provider.envVar] = options.apiKey;
+    }
+  }
+
+  // First-run setup wizard (interactive mode only)
+  if (!options.print) {
+    if (providerId && !isProviderConfigured(providerId)) {
+      // Provider specified but no key — run setup for this provider
+      await runSetup(providerId);
+    } else if (!providerId && !isConfigured()) {
+      // No provider at all — let user choose
+      await runSetup();
+    }
   }
 
   const controller = new SailController();
-
-  // First-run setup wizard (interactive mode only)
-  if (!options.print && !isConfigured()) {
-    await runSetup();
-  }
 
   // Load context files unless disabled
   let contextPrefix = "";
