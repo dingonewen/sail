@@ -98,7 +98,7 @@ export class SailController {
 
     try {
       const agent = await getAgent();
-      const stream = await agent.streamUntilIdle(fullPrompt, {
+      const mastraStream = await agent.streamUntilIdle(fullPrompt, {  
         memory: { resource, thread: threadId },
         maxSteps,
         toolCallConcurrency: 5,
@@ -145,17 +145,13 @@ export class SailController {
         },
       });
 
-      for await (const chunk of stream.textStream) {
+      for await (const chunk of mastraStream.textStream) {
         textLen += chunk.length;
         onTextChunk?.(chunk);
       }
 
-      for await (const chunk of stream.textStream) {
-        onTextChunk?.(chunk);
-      }
-
       onFinish?.();
-      return await stream;
+      return await mastraStream;
     } catch (error) {
       recordError((error as Error).message);
       onError?.(error as Error);

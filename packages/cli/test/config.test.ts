@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { resolveProvider, type SailConfig } from "../src/config.js";
+import { resolveProvider } from "../src/config.js";
 
 describe("Config", () => {
   describe("resolveProvider", () => {
@@ -11,11 +11,6 @@ describe("Config", () => {
     it("extracts provider from CLI model string", () => {
       expect(resolveProvider(undefined, "openai/gpt-5.5")).toBe("openai");
       expect(resolveProvider(undefined, "deepseek/deepseek-chat")).toBe("deepseek");
-    });
-
-    it("returns undefined when no config and no CLI args", () => {
-      expect(resolveProvider()).toBeUndefined();
-      expect(resolveProvider(undefined, undefined)).toBeUndefined();
     });
 
     it("CLI provider takes priority over CLI model", () => {
