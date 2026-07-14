@@ -91,6 +91,7 @@ export function parseArgs(argv: string[]) {
       "Deny all dangerous tool calls for this run"
     )
     .option("--list-models [search]", "List available models (with optional search)")
+    .option("--list-providers", "List supported AI providers and their status")
     .option("--verbose", "Force verbose startup output")
     .option("--offline", "Disable startup network operations");
 

@@ -13,6 +13,7 @@ import {
 import { SailController } from "@sail/core";
 import type { AgentMode } from "@sail/core";
 import { loadContextFiles } from "./context.js";
+import { isConfigured, runSetup, listProviders } from "./setup.js";
 import chalk from "chalk";
 
 const program = parseArgs(process.argv);
@@ -39,12 +40,23 @@ async function main() {
   // Load config
   const config = loadConfig();
 
+  // --list-providers
+  if (options.listProviders) {
+    listProviders();
+    process.exit(0);
+  }
+
   // Apply model override from CLI
   if (options.model) {
     process.env.SAIL_MODEL = options.model;
   }
 
   const controller = new SailController();
+
+  // First-run setup wizard (interactive mode only)
+  if (!options.print && !isConfigured()) {
+    await runSetup();
+  }
 
   // Load context files unless disabled
   let contextPrefix = "";
