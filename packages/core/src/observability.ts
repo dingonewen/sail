@@ -7,19 +7,21 @@ let _observability: Observability | null = null;
  * Records every tool call (name, args, result, duration)
  * and model turn (tokens, latency) via OpenTelemetry.
  *
- * Uses ConsoleExporter for development — upgrade to
- * MastraStorageExporter or OTLP for production.
+ * Only enabled when SAIL_OBSERVABILITY=console is set.
+ * Upgrade to MastraStorageExporter or OTLP for production.
  */
 export function createObservability(): Observability {
   if (_observability) return _observability;
 
+  const enabled = process.env.SAIL_OBSERVABILITY === "console";
+
   _observability = new Observability({
-    configs: {
+    configs: enabled ? {
       sail: {
         serviceName: "sail",
         exporters: [new ConsoleExporter()],
       },
-    },
+    } : {},
   });
 
   return _observability;

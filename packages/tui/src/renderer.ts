@@ -1,12 +1,9 @@
 import chalk from "chalk";
 
-// Track whether the previous line was a table header or separator
-let isTableHeader = false;
-
 /**
  * Render a markdown line → terminal ANSI via chalk.
  */
-function renderLine(line: string, prevLine: string, nextLineIsTableSep: boolean): string {
+function renderLine(line: string, _prevLine: string, nextLineIsTableSep: boolean): string {
   // ---- Code fence ----
   if (/^```/.test(line)) return chalk.dim(line);
 
@@ -67,13 +64,8 @@ function renderTableRow(line: string, isSeparatorRow: boolean): string {
     }
     // Alternating colors for readability
     const styled = renderInline(trimmed);
-    if (isTableHeader) {
-      return chalk.bold(styled);
-    }
     return i % 2 === 0 ? styled : chalk.dim(styled);
   });
-
-  isTableHeader = isSeparatorRow; // Next row after separator is header
 
   return "│ " + rendered.join(chalk.dim(" │ ")) + " │";
 }

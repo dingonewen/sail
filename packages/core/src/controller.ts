@@ -32,6 +32,10 @@ export class SailController {
     this.currentMode = mode;
   }
 
+  private defaultMaxSteps(): number {
+    return this.currentMode === "chat" ? 10 : this.currentMode === "plan" ? 15 : 25;
+  }
+
   private buildPrompt(userPrompt: string): string {
     const modeInstructions = MODE_INSTRUCTIONS[this.currentMode];
     return `${modeInstructions}\n\n${userPrompt}`;
@@ -48,7 +52,7 @@ export class SailController {
     const {
       resource = "default-user",
       thread,
-      maxSteps = 25,
+      maxSteps = this.defaultMaxSteps(),
       onTextChunk,
       onStepFinish,
       onFinish,
@@ -93,7 +97,7 @@ export class SailController {
     const {
       resource = "default-user",
       thread,
-      maxSteps = 25,
+      maxSteps = this.defaultMaxSteps(),
     } = options;
 
     const fullPrompt = this.buildPrompt(prompt);
