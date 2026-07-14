@@ -8,6 +8,7 @@ describe("@sail/core", () => {
     expect(typeof mod.createMemory).toBe("function");
     expect(typeof mod.createSailWorkspace).toBe("function");
     expect(typeof mod.createSubagents).toBe("function");
-    expect(typeof mod.createObservability).toBe("function");
+    expect(typeof mod.recordToolCall).toBe("function");
+    expect(typeof mod.recordModelTurn).toBe("function");
   });
 });

@@ -1,4 +1,5 @@
 import { getAgent } from "./agent.js";
+import { recordToolCall, recordModelTurn, recordDelegation, recordError } from "./observability.js";
 
 export type AgentMode = "chat" | "plan" | "build";
 
@@ -92,10 +93,11 @@ export class SailController {
 
     const fullPrompt = this.buildPrompt(prompt);
     const threadId = thread || `thread-${Date.now()}`;
+    const t0 = Date.now();
+    let textLen = 0;
 
     try {
       const agent = await getAgent();
-      // streamUntilIdle supports background subagent tasks (parallel execution)
       const stream = await agent.streamUntilIdle(fullPrompt, {
         memory: { resource, thread: threadId },
         maxSteps,
@@ -103,21 +105,23 @@ export class SailController {
         requireToolApproval: this.autoApprove || this.autoDeny
           ? undefined
           : async (ctx) => {
-              // Only require approval for dangerous tools
               if (!DANGEROUS_TOOLS.has(ctx.toolName)) return false;
               if (!onApprovalRequired) return false;
+              const t = Date.now();
               const approved = await onApprovalRequired({
                 name: ctx.toolName,
                 args: ctx.args ?? {},
               });
+              recordToolCall(ctx.toolName, ctx.args, approved ? "approved" : "denied", Date.now() - t, approved);
               if (!approved) {
                 throw new Error(`User denied tool call: ${ctx.toolName}`);
               }
-              return false; // We handled approval ourselves, don't double-pause
+              return false;
             },
         delegation: onDelegationStart || onDelegationComplete ? {
           onDelegationStart: async (ctx: any) => {
             onDelegationStart?.(ctx.primitiveId ?? "unknown", ctx.prompt ?? "");
+            recordDelegation(ctx.primitiveId ?? "?", "start", ctx.prompt ?? "");
             return { proceed: true };
           },
           onDelegationComplete: async (ctx: any) => {
@@ -125,6 +129,7 @@ export class SailController {
               ? ctx.result.slice(0, 200)
               : JSON.stringify(ctx.result).slice(0, 200);
             onDelegationComplete?.(ctx.primitiveId ?? "unknown", preview);
+            recordDelegation(ctx.primitiveId ?? "?", "complete", preview);
             if (ctx.error) {
               return { feedback: `${ctx.primitiveId} failed: ${ctx.error}` };
             }
@@ -133,8 +138,17 @@ export class SailController {
         onStepFinish: (step: any) => {
           const reason = step?.finishReason ?? step?.stepResult?.reason ?? "?";
           onStepFinish?.(reason);
+          recordModelTurn(reason, textLen, step?.usage ? {
+            input: step.usage.inputTokens,
+            output: step.usage.outputTokens,
+          } : undefined, Date.now() - t0);
         },
       });
+
+      for await (const chunk of stream.textStream) {
+        textLen += chunk.length;
+        onTextChunk?.(chunk);
+      }
 
       for await (const chunk of stream.textStream) {
         onTextChunk?.(chunk);
@@ -143,6 +157,7 @@ export class SailController {
       onFinish?.();
       return await stream;
     } catch (error) {
+      recordError((error as Error).message);
       onError?.(error as Error);
       throw error;
     }

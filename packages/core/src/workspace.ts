@@ -2,7 +2,6 @@ import {
   Workspace,
   LocalFilesystem,
   LocalSandbox,
-  WORKSPACE_TOOLS,
   detectIsolation,
 } from "@mastra/core/workspace";
 import { resolve } from "node:path";
@@ -33,11 +32,9 @@ export function createSailWorkspace(options?: {
       },
     }),
     tools: {
-      // Dangerous tools require user approval
-      [WORKSPACE_TOOLS.FILESYSTEM.WRITE_FILE]: { requireApproval: true },
-      [WORKSPACE_TOOLS.FILESYSTEM.EDIT_FILE]: { requireApproval: true },
-      [WORKSPACE_TOOLS.FILESYSTEM.DELETE]: { requireApproval: true },
-      [WORKSPACE_TOOLS.SANDBOX.EXECUTE_COMMAND]: { requireApproval: true },
+      // Approval is handled at the controller level via requireToolApproval,
+      // which intercepts dangerous tools BEFORE execution and prompts the user.
+      // This avoids double-pause (Mastra tool-level approval + our stream-level check).
     },
   });
 
