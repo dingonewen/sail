@@ -1,0 +1,16 @@
+{
+  "name": "sail",
+  "version": "0.1.0",
+  "private": true,
+  "description": "A terminal coding agent powered by Mastra — a from-scratch rewrite of Pi",
+  "type": "module",
+  "scripts": {
+    "build": "pnpm -r build",
+    "dev": "pnpm -r dev",
+    "typecheck": "pnpm -r typecheck",
+    "test": "pnpm -r test"
+  },
+  "engines": {
+    "node": ">=22.0.0"
+  }
+}
