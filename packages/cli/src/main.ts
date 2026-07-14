@@ -21,6 +21,7 @@ import {
   applyProvider,
   getProvider,
 } from "./setup.js";
+import { Renderer } from "@sail/tui";
 import chalk from "chalk";
 
 const program = parseArgs(process.argv);
@@ -160,6 +161,23 @@ async function main() {
   const activeProvider = currentConfig.defaultProvider || "none";
   const activeModel = currentConfig.providers[activeProvider]?.model || "default";
 
+  // Shared renderer for tool call observability
+  const renderer = new Renderer();
+
+  /** Build stream callbacks wired to the renderer */
+  function sc() {
+    return {
+      onTextChunk: (chunk: string) => renderer.writeChunk(chunk),
+      onToolCall: (tool: { name: string; args: unknown }) =>
+        renderer.showToolCall(tool.name, tool.args),
+      onToolResult: (tool: { name: string; result: unknown }) =>
+        renderer.showToolResult(tool.name, tool.result),
+      onStepFinish: (step: { finishReason: string }) =>
+        renderer.showStepFinish(step.finishReason),
+      onError: (error: Error) => renderer.error(error.message),
+    };
+  }
+
   // Enter the interactive TUI loop
   if (prompt) {
     console.log(chalk.bold("Sail"), chalk.dim("·"), prompt);
@@ -170,12 +188,7 @@ async function main() {
       await controller.stream(initialPrompt, {
         resource: "default-user",
         thread: session?.threadId,
-        onTextChunk: (chunk) => {
-          process.stdout.write(chunk);
-        },
-        onError: (error) => {
-          console.error(chalk.red(`\n  Error: ${error.message}`));
-        },
+        ...sc(),
       });
 
       console.log();
@@ -227,12 +240,7 @@ async function main() {
         await controller.stream(input, {
           resource: "default-user",
           thread: session?.threadId,
-          onTextChunk: (chunk) => {
-            process.stdout.write(chunk);
-          },
-          onError: (error) => {
-            console.error(chalk.red(`\n  Error: ${error.message}`));
-          },
+          ...sc(),
         });
         console.log();
         if (session) touchSession(session.id);
