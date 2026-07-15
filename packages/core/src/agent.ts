@@ -1,26 +1,56 @@
 import { Agent } from "@mastra/core/agent";
+import { createTool } from "@mastra/core/tools";
 import { createWorkspaceTools } from "@mastra/core/workspace";
+import { z } from "zod";
 import { createMemory } from "./memory.js";
 import { createSailWorkspace } from "./workspace.js";
 import { createSubagents } from "./subagents.js";
 
 let _agent: Agent | null = null;
 
-/** Get the supervisor agent instance with subagents (lazy init) */
-/** Read-only workspace tools (safe, no approval needed) */
+const webFetchTool = createTool({
+  id: "web_fetch",
+  description:
+    "Fetch a URL and return its content as plain text. Use to look up documentation, API references, release notes, or error messages.",
+  inputSchema: z.object({
+    url: z.string().describe("The URL to fetch (https://...)"),
+    maxChars: z.number().default(20000).describe("Max characters to return"),
+  }),
+  execute: async (params) => {
+    const res = await fetch(params.url, {
+      signal: AbortSignal.timeout(15000),
+    });
+    if (!res.ok) throw new Error(`HTTP ${res.status}: ${res.statusText}`);
+    const html = await res.text();
+    const text = html
+      .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, "")
+      .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, "")
+      .replace(/<[^>]+>/g, " ")
+      .replace(/&[a-z]+;/g, " ")
+      .replace(/\s{2,}/g, "\n")
+      .trim();
+    return { text: text.slice(0, params.maxChars), url: params.url };
+  },
+});
+
+/** Read-only tools (safe, no approval needed — shared with reviewer + explorer) */
 const READ_ONLY_TOOLS = new Set([
   "mastra_workspace_read_file",
   "mastra_workspace_grep",
   "mastra_workspace_list_files",
   "mastra_workspace_file_stat",
   "mastra_workspace_search",
+  "web_fetch",
 ]);
 
 export async function getAgent(): Promise<Agent> {
   if (_agent) return _agent;
 
   const workspace = createSailWorkspace();
-  const allTools = await createWorkspaceTools(workspace);
+  const allTools = {
+    ...(await createWorkspaceTools(workspace)),
+    web_fetch: webFetchTool,
+  };
   const memory = createMemory();
 
   // Split tools: read-only for reviewer/explorer, full set for fixer
