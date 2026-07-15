@@ -11,7 +11,7 @@ import {
   touchSession,
   renameSession,
 } from "./session.js";
-import { SailController } from "@sail/core";
+import { SailController, setObservabilityMode, getObservabilityMode, getObservabilityLogPath } from "@sail/core";
 import type { AgentMode } from "@sail/core";
 import { loadContextFiles } from "./context.js";
 import {
@@ -98,6 +98,11 @@ async function main() {
   // Wire approval flags
   if (options.approve) controller.setAutoApprove(true);
   if (options.noApprove) controller.setAutoDeny(true);
+
+  // Wire observability flag
+  if (options.obs) {
+    process.env.SAIL_OBSERVABILITY = options.obs;
+  }
 
   // Load context files unless disabled
   let contextPrefix = "";
@@ -299,15 +304,62 @@ async function handleSlashCommand(
       console.log("  /help        Show this help");
       console.log("  /login       Switch provider or add a new one");
       console.log("  /model       Show or change the current model");
-      console.log(
-        "  /mode        Show or change the agent mode (chat, plan, build)"
-      );
+      console.log("  /mode        Show or change the agent mode (chat, plan, build)");
+      console.log("  /obs         Show or set observability mode (off, console, file, both)");
       console.log("  /tree        Show the session tree");
       console.log("  /sessions    List recent sessions");
       console.log("  /rename      Rename the current session");
       console.log("  /clear       Clear the screen");
       console.log("  /exit        Exit Sail\n");
       break;
+
+    case "obs": {
+      if (!args[0]) {
+        // /obs — show current mode
+        const mode = getObservabilityMode();
+        console.log(c.subtext0(`Observability: ${c.green(mode)}`));
+        if (mode === "file" || mode === "both") {
+          console.log(c.subtext0(`Log: ${getObservabilityLogPath()}`));
+        }
+      } else if (args[0] === "view") {
+        // /obs view [N] — tail the JSONL log
+        const n = parseInt(args[1]) || 20;
+        const path = getObservabilityLogPath();
+        try {
+          const { readFileSync, existsSync } = await import("node:fs");
+          if (!existsSync(path)) {
+            console.log(c.peach("No observability log found. Set mode to file or both first."));
+          } else {
+            const lines = readFileSync(path, "utf-8").trim().split("\n");
+            const tail = lines.slice(-n);
+            console.log(c.subtext0(`\nLast ${tail.length} events:`));
+            for (const line of tail) {
+              try {
+                const evt = JSON.parse(line);
+                const icons: Record<string, string> = { tool_call: "🔧", model_turn: "🤖", delegation: "🔀", error: "❌" };
+                const icon = icons[evt.type] || "•";
+                console.log(`  ${icon} ${c.subtext0(evt.ts?.slice(11, 23) || "")} ${c.sky(evt.type)} ${JSON.stringify(evt.data).slice(0, 120)}`);
+              } catch {
+                console.log(`  ${c.subtext0(line.slice(0, 120))}`);
+              }
+            }
+            console.log();
+          }
+        } catch {
+          console.log(c.peach("Could not read observability log."));
+        }
+      } else {
+        // /obs off|console|file|both — set mode
+        const valid = ["off", "console", "file", "both"];
+        if (valid.includes(args[0])) {
+          setObservabilityMode(args[0] as "off" | "console" | "file" | "both");
+          console.log(c.green(`Observability set to: ${args[0]}`));
+        } else {
+          console.log(c.peach(`Invalid mode. Use: ${valid.join(", ")}`));
+        }
+      }
+      break;
+    }
 
     case "login": {
       const config = loadConfig();

@@ -93,7 +93,8 @@ export function parseArgs(argv: string[]) {
     .option("--list-models [search]", "List available models (with optional search)")
     .option("--list-providers", "List supported AI providers and their status")
     .option("--verbose", "Force verbose startup output")
-    .option("--offline", "Disable startup network operations");
+    .option("--offline", "Disable startup network operations")
+    .option("--obs <mode>", "Observability mode: off, console, file, or both");
 
   program.parse(argv);
   return program;
