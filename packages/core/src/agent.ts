@@ -39,7 +39,10 @@ const READ_ONLY_TOOLS = new Set([
   "mastra_workspace_grep",
   "mastra_workspace_list_files",
   "mastra_workspace_file_stat",
+  "mastra_workspace_mkdir",
   "mastra_workspace_search",
+  "mastra_workspace_get_process_output",
+  "mastra_workspace_lsp_inspect",
   "web_fetch",
 ]);
 

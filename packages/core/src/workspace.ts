@@ -31,6 +31,12 @@ export function createSailWorkspace(options?: {
         readWritePaths: [cwd],
       },
     }),
+    // BM25 full-text search — enables mastra_workspace_search tool
+    bm25: true,
+    autoIndexPaths: [cwd],
+    // LSP integration — enables mastra_workspace_lsp_inspect tool
+    // for hover, go-to-definition, diagnostics
+    lsp: true,
     tools: {
       // Approval is handled at the controller level via requireToolApproval,
       // which intercepts dangerous tools BEFORE execution and prompts the user.
