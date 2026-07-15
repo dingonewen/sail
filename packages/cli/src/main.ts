@@ -146,7 +146,7 @@ async function main() {
   const prompt = messages.join(" ");
 
   // Determine session
-  let session;
+  let session: ReturnType<typeof createSession> | null = null;
   if (options.fork) {
     session = forkSession(options.fork, options.name);
     if (!session) {
@@ -232,19 +232,19 @@ async function main() {
     }
   } else {
     // No initial prompt — interactive readline loop
+    const statusLine = () =>
+      c.subtext0(
+        `Session: ${session?.name || "ephemeral"}  ·  Provider: ${activeProvider}  ·  Model: ${activeModel}`
+      );
+
     console.log(
       c.text.bold("Sail"),
       c.subtext0(`v${program.version()}`)
     );
     console.log(c.subtext0("Type a message to start, or /help for commands."));
-    console.log(
-      c.subtext0(
-        `Session: ${session?.name || "ephemeral"}  ·  Provider: ${activeProvider}  ·  Model: ${activeModel}`
-      )
-    );
+    console.log(statusLine());
     console.log();
 
-    // Readline loop
     const readline = await import("node:readline");
     const rl = readline.createInterface({
       input: process.stdin,
@@ -263,7 +263,11 @@ async function main() {
 
       // Handle slash commands
       if (input.startsWith("/")) {
-        await handleSlashCommand(input, controller, session);
+        const newSession = await handleSlashCommand(input, controller);
+        if (newSession !== undefined) {
+          session = newSession;
+          console.log(statusLine());
+        }
         rl.prompt();
         continue;
       }
@@ -289,198 +293,216 @@ async function main() {
   if (session) {
     touchSession(session.id);
   }
-}
 
-async function handleSlashCommand(
-  input: string,
-  controller: SailController,
-  session: ReturnType<typeof createSession> | null
-) {
-  const [cmd, ...args] = input.slice(1).split(/\s+/);
+  // ── slash-command handler ──
+  async function handleSlashCommand(
+    input: string,
+    controller: SailController,
+  ): Promise<ReturnType<typeof createSession> | null | undefined> {
+    const [cmd, ...args] = input.slice(1).split(/\s+/);
 
-  switch (cmd) {
-    case "help":
-      console.log(c.text.bold("\nCommands:"));
-      console.log("  /help        Show this help");
-      console.log("  /login       Switch provider or add a new one");
-      console.log("  /model       Show or change the current model");
-      console.log("  /mode        Show or change the agent mode (chat, plan, build)");
-      console.log("  /obs         Show or set observability mode (off, console, file, both)");
-      console.log("  /tree        Show the session tree");
-      console.log("  /sessions    List recent sessions");
-      console.log("  /rename      Rename the current session");
-      console.log("  /clear       Clear the screen");
-      console.log("  /exit        Exit Sail\n");
-      break;
+    switch (cmd) {
+      case "help":
+        console.log(c.text.bold("\nCommands:"));
+        console.log("  /help        Show this help");
+        console.log("  /login       Switch provider or add a new one");
+        console.log("  /model       Show or change the current model");
+        console.log("  /mode        Show or change the agent mode (chat, plan, build)");
+        console.log("  /obs         Show or set observability mode (off, console, file, both)");
+        console.log("  /tree        Show the session tree");
+        console.log("  /sessions    List or switch sessions (/sessions <number>)");
+        console.log("  /rename      Rename the current session");
+        console.log("  /clear       Clear the screen");
+        console.log("  /exit        Exit Sail\n");
+        break;
 
-    case "obs": {
-      if (!args[0]) {
-        // /obs — show current mode
-        const mode = getObservabilityMode();
-        console.log(c.subtext0(`Observability: ${c.green(mode)}`));
-        if (mode === "file" || mode === "both") {
-          console.log(c.subtext0(`Log: ${getObservabilityLogPath()}`));
-        }
-      } else if (args[0] === "view") {
-        // /obs view [N] — tail the JSONL log
-        const n = parseInt(args[1]) || 20;
-        const path = getObservabilityLogPath();
-        try {
-          const { readFileSync, existsSync } = await import("node:fs");
-          if (!existsSync(path)) {
-            console.log(c.peach("No observability log found. Set mode to file or both first."));
-          } else {
-            const lines = readFileSync(path, "utf-8").trim().split("\n");
-            const tail = lines.slice(-n);
-            console.log(c.subtext0(`\nLast ${tail.length} events:`));
-            for (const line of tail) {
-              try {
-                const evt = JSON.parse(line);
-                const icons: Record<string, string> = { tool_call: "🔧", model_turn: "🤖", delegation: "🔀", error: "❌" };
-                const icon = icons[evt.type] || "•";
-                console.log(`  ${icon} ${c.subtext0(evt.ts?.slice(11, 23) || "")} ${c.sky(evt.type)} ${JSON.stringify(evt.data).slice(0, 120)}`);
-              } catch {
-                console.log(`  ${c.subtext0(line.slice(0, 120))}`);
-              }
-            }
-            console.log();
+      case "obs": {
+        if (!args[0]) {
+          // /obs — show current mode
+          const mode = getObservabilityMode();
+          console.log(c.subtext0(`Observability: ${c.green(mode)}`));
+          if (mode === "file" || mode === "both") {
+            console.log(c.subtext0(`Log: ${getObservabilityLogPath()}`));
           }
-        } catch {
-          console.log(c.peach("Could not read observability log."));
-        }
-      } else {
-        // /obs off|console|file|both — set mode
-        const valid = ["off", "console", "file", "both"];
-        if (valid.includes(args[0])) {
-          setObservabilityMode(args[0] as "off" | "console" | "file" | "both");
-          console.log(c.green(`Observability set to: ${args[0]}`));
-        } else {
-          console.log(c.peach(`Invalid mode. Use: ${valid.join(", ")}`));
-        }
-      }
-      break;
-    }
-
-    case "login": {
-      const config = loadConfig();
-      if (args[0]) {
-        // /login <provider> — switch to a saved provider, or add a new one
-        const targetId = args[0].toLowerCase();
-        const existing = getProviderConfig(targetId);
-        if (existing) {
-          // Already saved — switch to it
+        } else if (args[0] === "view") {
+          // /obs view [N] — tail the JSONL log
+          const n = parseInt(args[1]) || 20;
+          const path = getObservabilityLogPath();
           try {
-            setDefaultProvider(targetId);
-            applyProvider(targetId);
-            console.log(
-              c.green(`Switched to ${args[0]} (model: ${existing.model})`)
-            );
-          } catch (e: any) {
-            console.log(c.red(`Error: ${e.message}`));
+            const { readFileSync, existsSync } = await import("node:fs");
+            if (!existsSync(path)) {
+              console.log(c.peach("No observability log found. Set mode to file or both first."));
+            } else {
+              const lines = readFileSync(path, "utf-8").trim().split("\n");
+              const tail = lines.slice(-n);
+              console.log(c.subtext0(`\nLast ${tail.length} events:`));
+              for (const line of tail) {
+                try {
+                  const evt = JSON.parse(line);
+                  const icons: Record<string, string> = { tool_call: "🔧", model_turn: "🤖", delegation: "🔀", error: "❌" };
+                  const icon = icons[evt.type] || "•";
+                  console.log(`  ${icon} ${c.subtext0(evt.ts?.slice(11, 23) || "")} ${c.sky(evt.type)} ${JSON.stringify(evt.data).slice(0, 120)}`);
+                } catch {
+                  console.log(`  ${c.subtext0(line.slice(0, 120))}`);
+                }
+              }
+              console.log();
+            }
+          } catch {
+            console.log(c.peach("Could not read observability log."));
           }
         } else {
-          // Not saved — launch setup wizard
-          await runSetup(targetId);
+          // /obs off|console|file|both — set mode
+          const valid = ["off", "console", "file", "both"];
+          if (valid.includes(args[0])) {
+            setObservabilityMode(args[0] as "off" | "console" | "file" | "both");
+            console.log(c.green(`Observability set to: ${args[0]}`));
+          } else {
+            console.log(c.peach(`Invalid mode. Use: ${valid.join(", ")}`));
+          }
         }
-      } else {
-        // /login with no args — show current provider and list saved ones
-        console.log();
-        console.log(
-          c.text.bold("Default provider: ") +
-            (config.defaultProvider
-              ? c.green(config.defaultProvider)
-              : c.subtext0("none"))
-        );
-        const saved = Object.entries(config.providers);
-        if (saved.length > 0) {
-          console.log();
-          console.log(c.text.bold("Saved providers:"));
-          for (const [id, pc] of saved) {
-            const marker = id === config.defaultProvider ? c.green(" *") : " ";
-            console.log(`${marker} ${c.sky(id)}  →  ${pc.model}`);
+        break;
+      }
+
+      case "login": {
+        const config = loadConfig();
+        if (args[0]) {
+          // /login <provider> — switch to a saved provider, or add a new one
+          const targetId = args[0].toLowerCase();
+          const existing = getProviderConfig(targetId);
+          if (existing) {
+            // Already saved — switch to it
+            try {
+              setDefaultProvider(targetId);
+              applyProvider(targetId);
+              console.log(
+                c.green(`Switched to ${args[0]} (model: ${existing.model})`)
+              );
+            } catch (e: any) {
+              console.log(c.red(`Error: ${e.message}`));
+            }
+          } else {
+            // Not saved — launch setup wizard
+            await runSetup(targetId);
           }
-          console.log(c.subtext0("\n  * = default. Use /login <provider> to switch."));
         } else {
+          // /login with no args — show current provider and list saved ones
+          console.log();
           console.log(
-            c.subtext0("No saved providers. Use /login <provider> to add one.")
+            c.text.bold("Default provider: ") +
+              (config.defaultProvider
+                ? c.green(config.defaultProvider)
+                : c.subtext0("none"))
+          );
+          const saved = Object.entries(config.providers);
+          if (saved.length > 0) {
+            console.log();
+            console.log(c.text.bold("Saved providers:"));
+            for (const [id, pc] of saved) {
+              const marker = id === config.defaultProvider ? c.green(" *") : " ";
+              console.log(`${marker} ${c.sky(id)}  →  ${pc.model}`);
+            }
+            console.log(c.subtext0("\n  * = default. Use /login <provider> to switch."));
+          } else {
+            console.log(
+              c.subtext0("No saved providers. Use /login <provider> to add one.")
+            );
+          }
+          console.log();
+        }
+        break;
+      }
+
+      case "model":
+        console.log(
+          c.subtext0(`Current model: ${process.env.SAIL_MODEL || "default"}`)
+        );
+        if (args[0]) {
+          process.env.SAIL_MODEL = args[0];
+          console.log(c.green(`Model changed to: ${args[0]}`));
+        }
+        break;
+
+      case "mode":
+        console.log(c.subtext0(`Current mode: ${controller.mode}`));
+        console.log(c.subtext0("Modes: chat (default), plan, build"));
+        if (args[0]) {
+          controller.switchMode(args[0] as AgentMode);
+          console.log(c.green(`Switched to mode: ${args[0]}`));
+        }
+        break;
+
+      case "tree": {
+        console.log(c.text.bold("\nSession tree:"));
+        const sessions = listSessions();
+        for (const s of sessions.slice(0, 20)) {
+          const prefix = s.parentId ? "  ├─" : "●";
+          const marker =
+            s.id === session?.id ? c.green(" (current)") : "";
+          console.log(
+            `  ${prefix} ${c.sky(s.id.slice(0, 8))}  ${s.name}${marker}  ${c.subtext0(new Date(s.updatedAt).toLocaleString())}`
           );
         }
         console.log();
+        break;
       }
-      break;
-    }
 
-    case "model":
-      console.log(
-        c.subtext0(`Current model: ${process.env.SAIL_MODEL || "default"}`)
-      );
-      if (args[0]) {
-        process.env.SAIL_MODEL = args[0];
-        console.log(c.green(`Model changed to: ${args[0]}`));
+      case "sessions": {
+        const sessions = listSessions().slice(0, 10);
+        if (args[0]) {
+          // /sessions <number> — switch to that session
+          const idx = parseInt(args[0]) - 1;
+          if (idx >= 0 && idx < sessions.length) {
+            const picked = sessions[idx];
+            console.log(c.green(`Switched to session: ${picked.name}`));
+            return picked;
+          } else {
+            console.log(c.peach(`Invalid session number. Use /sessions to see the list.`));
+          }
+        } else {
+          // /sessions — show numbered list
+          console.log(c.text.bold("\nRecent sessions:"));
+          for (let i = 0; i < sessions.length; i++) {
+            const s = sessions[i];
+            const marker = s.id === session?.id ? c.green(" *") : " ";
+            console.log(
+              `${marker} ${c.green(String(i + 1))}. ${c.sky(s.id.slice(0, 8))}  ${s.name}  ${c.subtext0(new Date(s.updatedAt).toLocaleString())}`
+            );
+          }
+          console.log(c.subtext0("\n  Use /sessions <number> to switch sessions."));
+          console.log();
+        }
+        break;
       }
-      break;
 
-    case "mode":
-      console.log(c.subtext0(`Current mode: ${controller.mode}`));
-      console.log(c.subtext0("Modes: chat (default), plan, build"));
-      if (args[0]) {
-        controller.switchMode(args[0] as AgentMode);
-        console.log(c.green(`Switched to mode: ${args[0]}`));
+      case "rename": {
+        const newName = args.join(" ");
+        if (!newName) {
+          console.log(c.subtext0("Usage: /rename <new name>"));
+        } else if (!session) {
+          console.log(c.peach("No active session to rename."));
+        } else {
+          const ok = renameSession(session.id, newName);
+          console.log(ok ? c.green(`Session renamed to: ${newName}`) : c.red("Session not found."));
+        }
+        break;
       }
-      break;
 
-    case "tree":
-      console.log(c.text.bold("\nSession tree:"));
-      const sessions = listSessions();
-      for (const s of sessions.slice(0, 20)) {
-        const prefix = s.parentId ? "  ├─" : "●";
-        const marker =
-          s.id === session?.id ? c.green(" (current)") : "";
+      case "clear":
+        process.stdout.write("\x1b[2J\x1b[0f");
+        break;
+
+      case "exit":
+        console.log(c.subtext0("Goodbye!"));
+        process.exit(0);
+
+      default:
         console.log(
-          `  ${prefix} ${c.sky(s.id.slice(0, 8))}  ${s.name}${marker}  ${c.subtext0(new Date(s.updatedAt).toLocaleString())}`
+          c.peach(
+            `Unknown command: /${cmd}. Type /help for available commands.`
+          )
         );
-      }
-      console.log();
-      break;
-
-    case "sessions":
-      console.log(c.text.bold("\nRecent sessions:"));
-      for (const s of listSessions().slice(0, 10)) {
-        const marker = s.id === session?.id ? c.green(" *") : " ";
-        console.log(
-          `${marker} ${c.sky(s.id.slice(0, 8))}  ${s.name}  ${c.subtext0(new Date(s.updatedAt).toLocaleString())}`
-        );
-      }
-      console.log();
-      break;
-
-    case "rename": {
-      const newName = args.join(" ");
-      if (!newName) {
-        console.log(c.subtext0("Usage: /rename <new name>"));
-      } else if (!session) {
-        console.log(c.peach("No active session to rename."));
-      } else {
-        const ok = renameSession(session.id, newName);
-        console.log(ok ? c.green(`Session renamed to: ${newName}`) : c.red("Session not found."));
-      }
-      break;
     }
-
-    case "clear":
-      process.stdout.write("\x1b[2J\x1b[0f");
-      break;
-
-    case "exit":
-      console.log(c.subtext0("Goodbye!"));
-      process.exit(0);
-
-    default:
-      console.log(
-        c.peach(
-          `Unknown command: /${cmd}. Type /help for available commands.`
-        )
-      );
   }
 }
 
