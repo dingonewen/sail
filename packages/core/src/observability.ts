@@ -2,7 +2,7 @@ import { appendFileSync, existsSync, mkdirSync } from "node:fs";
 import { dirname } from "node:path";
 import { homedir } from "node:os";
 
-type ObsMode = "off" | "console" | "file";
+type ObsMode = "off" | "console" | "file" | "both";
 
 let _mode: ObsMode | null = null;
 
@@ -11,12 +11,25 @@ function mode(): ObsMode {
   const v = process.env.SAIL_OBSERVABILITY;
   if (v === "console" || v === "1" || v === "true") _mode = "console";
   else if (v === "file" || v === "json") _mode = "file";
+  else if (v === "both") _mode = "both";
   else _mode = "off";
   return _mode;
 }
 
+export function setObservabilityMode(m: ObsMode): void {
+  _mode = m;
+}
+
+export function getObservabilityMode(): ObsMode {
+  return mode();
+}
+
 function logPath(): string {
   return `${homedir()}/.sail/observability.jsonl`;
+}
+
+export function getObservabilityLogPath(): string {
+  return logPath();
 }
 
 function ensureDir(): void {
@@ -28,14 +41,14 @@ function emit(type: string, data: Record<string, unknown>): void {
   const m = mode();
   if (m === "off") return;
   const ts = new Date().toISOString();
-  if (m === "console") {
+  if (m === "console" || m === "both") {
     const icon =
       type === "tool_call" ? "🔧" :
       type === "model_turn" ? "🤖" :
       type === "delegation" ? "🔀" : "❌";
     process.stdout.write(`\n  ${icon} [${ts.slice(11, 23)}] ${type} ${JSON.stringify(data)}`);
   }
-  if (m === "file") {
+  if (m === "file" || m === "both") {
     ensureDir();
     appendFileSync(logPath(), JSON.stringify({ ts, type, data }) + "\n", "utf-8");
   }

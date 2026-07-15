@@ -10,5 +10,8 @@ describe("@sail/core", () => {
     expect(typeof mod.createSubagents).toBe("function");
     expect(typeof mod.recordToolCall).toBe("function");
     expect(typeof mod.recordModelTurn).toBe("function");
+    expect(typeof mod.setObservabilityMode).toBe("function");
+    expect(typeof mod.getObservabilityMode).toBe("function");
+    expect(typeof mod.getObservabilityLogPath).toBe("function");
   });
 });

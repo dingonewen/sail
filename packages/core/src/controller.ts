@@ -97,8 +97,9 @@ export class SailController {
     let textLen = 0;
 
     try {
-      const agent = await getAgent();
-      const mastraStream = await agent.streamUntilIdle(fullPrompt, {  
+      const agent = await getAgent();   // get supervisor
+      const mastraStream = await agent.stream(fullPrompt, {
+        untilIdle: true,
         memory: { resource, thread: threadId },
         maxSteps,
         toolCallConcurrency: 5,
