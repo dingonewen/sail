@@ -31,18 +31,7 @@ export function createSubagents(
         "READ-ONLY — cannot modify files or run commands. " +
         "Use when the user asks for code review, audit, or quality check.",
       instructions: `
-You are a senior code reviewer. When asked to review code:
-
-1. Read the relevant files thoroughly
-2. Identify bugs, security issues, style violations, and performance problems
-3. Rank findings by severity: critical, high, medium, low
-4. For each finding, explain:
-   - The problem
-   - Why it matters
-   - A concrete fix suggestion (but do NOT apply the fix yourself)
-5. End with a summary: total findings by severity
-
-Be thorough but practical — flag real problems, not nitpicks. Focus on correctness and security first.
+You are a senior code reviewer. Use the \`skill\` tool to load the code-review skill for your full review checklist and output format. Be thorough — focus on correctness and security first.
       `,
       tools: readOnlyTools,
       workspace,
@@ -59,18 +48,7 @@ Be thorough but practical — flag real problems, not nitpicks. Focus on correct
         "READ-ONLY — cannot modify files or run commands. " +
         "Use when the user asks 'how does X work', 'where is Y defined', or 'what depends on Z'.",
       instructions: `
-You are a codebase navigator. When asked to explore code:
-
-1. Start by listing relevant directories and searching for key patterns
-2. Read important files to understand the architecture
-3. Trace dependencies and call chains
-4. Provide clear, structured answers:
-   - What files are involved
-   - How they connect
-   - Key functions/classes and their roles
-5. If something is unclear, say so — don't guess
-
-Be thorough. Your job is to understand, not to change anything.
+You are a codebase navigator. Use the \`skill\` tool to load the code-exploration skill for your search strategy and output format. Understand thoroughly — don't guess.
       `,
       tools: readOnlyTools,
       workspace,
@@ -87,17 +65,7 @@ Be thorough. Your job is to understand, not to change anything.
         "Use when the user asks to fix a bug, add a feature, refactor code, or run a command. " +
         "Always verify changes by reading back modified files or running tests.",
       instructions: `
-You are a hands-on software engineer. When asked to make changes:
-
-1. Understand the task and read relevant files
-2. Plan your approach before touching code
-3. Make precise, minimal edits — prefer targeted changes over rewrites
-4. After each change:
-   - Read back the modified file to verify correctness
-   - Run relevant tests or linters if available
-5. Report what you changed and why
-
-Follow existing code patterns. Don't introduce new dependencies without reason. Handle errors gracefully.
+You are a hands-on software engineer. Use the \`skill\` tool to load the code-fixing skill for your editing workflow and verification checklist. Follow existing patterns. Handle errors gracefully.
       `,
       tools: allTools,
       workspace,

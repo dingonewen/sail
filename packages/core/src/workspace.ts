@@ -37,6 +37,11 @@ export function createSailWorkspace(options?: {
     // LSP integration — enables mastra_workspace_lsp_inspect tool
     // for hover, go-to-definition, diagnostics
     lsp: true,
+    // Skills — SKILL.md files loaded on demand by the agent.
+    // Default: bundled skills; override with SAIL_SKILLS_DIR env var.
+    skills: [
+      process.env.SAIL_SKILLS_DIR || resolve(import.meta.dirname, "..", "skills"),
+    ],
     tools: {
       // Approval is handled at the controller level via requireToolApproval,
       // which intercepts dangerous tools BEFORE execution and prompts the user.
