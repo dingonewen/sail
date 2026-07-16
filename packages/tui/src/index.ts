@@ -1,2 +1,2 @@
 export { Renderer } from "./renderer.js";
-export { promptApproval } from "./prompt.js";
+export { promptApproval, type ApprovalResult } from "./prompt.js";

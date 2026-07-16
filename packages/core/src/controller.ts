@@ -103,9 +103,9 @@ export class SailController {
         memory: { resource, thread: threadId },
         maxSteps,
         toolCallConcurrency: 5,
-        requireToolApproval: this.autoApprove || this.autoDeny
-          ? undefined
-          : async (ctx) => {
+        requireToolApproval: async (ctx) => {
+              if (this.autoApprove) return false;
+              if (this.autoDeny) throw new Error("auto-deny: all tool calls blocked");
               if (!DANGEROUS_TOOLS.has(ctx.toolName)) return false;
               if (!onApprovalRequired) return false;
               const t = Date.now();
@@ -142,7 +142,7 @@ export class SailController {
           recordModelTurn(reason, textLen, step?.usage ? {
             input: step.usage.inputTokens,
             output: step.usage.outputTokens,
-          } : undefined, Date.now() - t0);
+          } : undefined, Date.now() - t0, fullPrompt);
 
           // Record tool results (has both tool name and output)
           for (const tr of step?.toolResults ?? []) {
@@ -152,10 +152,15 @@ export class SailController {
         },
       });
 
+      let fullResponse = "";
       for await (const chunk of mastraStream.textStream) {
+        fullResponse += chunk;
         textLen += chunk.length;
         onTextChunk?.(chunk);
       }
+
+      // Emit a content-rich span with full prompt and response
+      recordModelTurn("content", fullResponse.length, undefined, undefined, fullPrompt, fullResponse);
 
       onFinish?.();
       await flushObservability();
@@ -197,6 +202,8 @@ export class SailController {
       result.text?.length ?? 0,
       usage ? { input: usage.promptTokens ?? usage.inputTokens ?? 0, output: usage.completionTokens ?? usage.outputTokens ?? 0 } : undefined,
       Date.now() - t0,
+      fullPrompt,
+      result.text ?? "",
     );
     await flushObservability();
 

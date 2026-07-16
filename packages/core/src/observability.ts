@@ -220,12 +220,15 @@ export function recordToolCall(
     attr("tool.name", name),
     attr("tool.duration_ms", durationMs),
     attr("tool.approved", approved ?? false),
+    attr("tool.args", JSON.stringify(args).slice(0, 32000)),
+    attr("tool.result", JSON.stringify(result).slice(0, 32000)),
   ], _currentModelTurnSpanId ?? undefined);
 }
 
 /** Record an LLM inference step */
 export function recordModelTurn(
   finishReason: string, textLen: number, tokens?: { input?: number; output?: number }, durationMs?: number,
+  prompt?: string, response?: string,
 ): void {
   emit("model_turn", { finishReason, textLen, tokens, durationMs });
 
@@ -233,13 +236,16 @@ export function recordModelTurn(
   const start = durationMs
     ? (BigInt(now) - BigInt(durationMs) * 1_000_000n).toString()
     : now;
-  _currentModelTurnSpanId = emitOtlpSpan(`model_turn`, 1 /* INTERNAL */, start, now, [
+  const spanId = emitOtlpSpan(`model_turn`, 1 /* INTERNAL */, start, now, [
     attr("gen_ai.operation.name", "chat"),
     attr("gen_ai.response.finish_reason", finishReason),
     attr("gen_ai.usage.input_tokens", tokens?.input ?? 0),
     attr("gen_ai.usage.output_tokens", tokens?.output ?? 0),
     attr("gen_ai.output.text_length", textLen),
+    ...(prompt ? [attr("gen_ai.prompt", prompt.slice(0, 32000))] : []),
+    ...(response ? [attr("gen_ai.completion", response.slice(0, 32000))] : []),
   ]);
+  _currentModelTurnSpanId = spanId;
 }
 
 /** Record subagent delegation */

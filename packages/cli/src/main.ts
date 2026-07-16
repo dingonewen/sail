@@ -199,10 +199,14 @@ async function main() {
     return {
       onTextChunk: (chunk: string) => renderer.writeChunk(chunk),
       onApprovalRequired: async (tool: { name: string; args: unknown }) => {
-        renderer.stopSpinner?.(); // stop spinner during approval prompt
+        renderer.stopSpinner?.();
         const result = await promptApproval(tool.name, tool.args as Record<string, unknown>);
         renderer.startSpinner();
-        return result;
+        if (result === "approve-all") {
+          controller.setAutoApprove(true);
+          return true;
+        }
+        return result === "approve";
       },
       onDelegationStart: (agent: string, prompt: string) =>
         renderer.showDelegationStart(agent, prompt),

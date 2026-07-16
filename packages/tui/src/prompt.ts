@@ -9,13 +9,15 @@ const c = {
   subtext0: chalk.hex("#6c6f85"),
 };
 
+export type ApprovalResult = "approve" | "deny" | "approve-all";
+
 /**
  * Prompt the user to approve a dangerous tool execution.
  */
 export async function promptApproval(
   toolName: string,
   params: Record<string, unknown>
-): Promise<boolean> {
+): Promise<ApprovalResult> {
   console.log();
   console.log(
     c.peach.bold("⚠") + " " +
@@ -31,7 +33,10 @@ export async function promptApproval(
   );
 
   const answer = await ask("  Choice: ");
-  return ["a", "y", "yes"].includes(answer.trim().toLowerCase());
+  const a = answer.trim().toLowerCase();
+  if (a === "y" || a === "yes") return "approve-all";
+  if (a === "a" || a === "allow") return "approve";
+  return "deny";
 }
 
 function ask(question: string): Promise<string> {
@@ -39,6 +44,7 @@ function ask(question: string): Promise<string> {
     const rl = createInterface({
       input: process.stdin,
       output: process.stdout,
+      terminal: false, // don't emit 'keypress' on stdin — avoids double-input
     });
     rl.question(question, (answer) => {
       rl.close();
