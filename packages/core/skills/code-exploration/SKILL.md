@@ -1,5 +1,9 @@
+---
+name: code-exploration
+description: How to explore unfamiliar codebases systematically. Load when tracing dependencies, understanding architecture, or answering "how does X work".
+---
+
 # Code Exploration
-Description: How to explore unfamiliar codebases systematically. Load when tracing dependencies, understanding architecture, or answering "how does X work".
 
 ## Strategy
 

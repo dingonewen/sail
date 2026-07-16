@@ -1,5 +1,5 @@
 import { getAgent } from "./agent.js";
-import { recordToolCall, recordModelTurn, recordDelegation, recordError } from "./observability.js";
+import { recordToolCall, recordModelTurn, recordDelegation, recordError, flushObservability } from "./observability.js";
 
 export type AgentMode = "chat" | "plan" | "build";
 
@@ -143,6 +143,16 @@ export class SailController {
             input: step.usage.inputTokens,
             output: step.usage.outputTokens,
           } : undefined, Date.now() - t0);
+
+          // Record all tool calls from this step
+          for (const tc of step?.toolCalls ?? []) {
+            const p = tc.payload ?? tc;
+            recordToolCall(p.toolName ?? "?", p.args ?? {}, p.output ?? "ok", 0);
+          }
+          for (const tr of step?.toolResults ?? []) {
+            const p = tr.payload ?? tr;
+            recordToolCall(p.toolName ?? "?", p.args ?? {}, p.result ?? "ok", 0);
+          }
         },
       });
 
@@ -176,11 +186,23 @@ export class SailController {
 
     const fullPrompt = this.buildPrompt(prompt);
     const threadId = thread || `thread-${Date.now()}`;
+    const t0 = Date.now();
 
     const agent = await getAgent();
-    return agent.generate(fullPrompt, {
+    const result = await agent.generate(fullPrompt, {
       memory: { resource, thread: threadId },
       maxSteps,
     });
+
+    const usage = (result as any).usage;
+    recordModelTurn(
+      result.finishReason ?? "stop",
+      result.text?.length ?? 0,
+      usage ? { input: usage.promptTokens ?? usage.inputTokens ?? 0, output: usage.completionTokens ?? usage.outputTokens ?? 0 } : undefined,
+      Date.now() - t0,
+    );
+    await flushObservability();
+
+    return result;
   }
 }

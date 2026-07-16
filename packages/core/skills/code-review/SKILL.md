@@ -1,5 +1,9 @@
+---
+name: code-review
+description: How to review code systematically. Load when auditing code for bugs, security, style, or performance.
+---
+
 # Code Review
-Description: How to review code systematically. Load when auditing code for bugs, security, style, or performance.
 
 ## Review Checklist
 

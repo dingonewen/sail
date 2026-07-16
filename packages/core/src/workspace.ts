@@ -5,6 +5,9 @@ import {
   detectIsolation,
 } from "@mastra/core/workspace";
 import { resolve } from "node:path";
+import { createRequire } from "node:module";
+
+const _require = createRequire(import.meta.url);
 
 let _workspace: Workspace | null = null;
 
@@ -34,9 +37,9 @@ export function createSailWorkspace(options?: {
     // BM25 full-text search — enables mastra_workspace_search tool
     bm25: true,
     autoIndexPaths: [cwd],
-    // LSP integration — enables mastra_workspace_lsp_inspect tool
-    // for hover, go-to-definition, diagnostics
-    lsp: true,
+    // LSP integration — enabled only when runtime packages are available.
+    // Install vscode-jsonrpc + vscode-languageserver-protocol to activate.
+    lsp: detectLspAvailable(),
     // Skills — SKILL.md files loaded on demand by the agent.
     // Default: bundled skills; override with SAIL_SKILLS_DIR env var.
     skills: [
@@ -50,6 +53,17 @@ export function createSailWorkspace(options?: {
   });
 
   return _workspace;
+}
+
+/** Detect if LSP runtime packages are installed */
+function detectLspAvailable(): boolean {
+  try {
+    _require.resolve("vscode-jsonrpc");
+    _require.resolve("vscode-languageserver-protocol");
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 /** Detect best available OS-level isolation backend */

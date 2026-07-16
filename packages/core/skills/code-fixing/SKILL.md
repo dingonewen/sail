@@ -1,5 +1,9 @@
+---
+name: code-fixing
+description: How to implement code changes safely. Load when writing, editing, or refactoring code.
+---
+
 # Code Fixing
-Description: How to implement code changes safely. Load when writing, editing, or refactoring code.
 
 ## Before You Touch Code
 

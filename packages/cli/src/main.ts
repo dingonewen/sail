@@ -11,7 +11,7 @@ import {
   touchSession,
   renameSession,
 } from "./session.js";
-import { SailController, setObservabilityMode, getObservabilityMode, getObservabilityLogPath } from "@sail/core";
+import { SailController, setObservabilityMode, getObservabilityMode, getObservabilityLogPath, flushObservability } from "@sail/core";
 import type { AgentMode } from "@sail/core";
 import { loadContextFiles } from "./context.js";
 import {
@@ -59,6 +59,7 @@ async function main() {
     console.log(
       "Provider env vars: ANTHROPIC_API_KEY, OPENAI_API_KEY, GOOGLE_API_KEY, DEEPSEEK_API_KEY"
     );
+    await flushObservability();
     process.exit(0);
   }
 
@@ -68,6 +69,7 @@ async function main() {
   // --list-providers
   if (options.listProviders) {
     listProviders();
+    await flushObservability();
     process.exit(0);
   }
 
@@ -139,6 +141,7 @@ async function main() {
       console.error(c.red("Error:"), error);
       process.exit(1);
     }
+    await flushObservability();
     process.exit(0);
   }
 
@@ -164,6 +167,7 @@ async function main() {
     console.log(
       c.subtext0("\nUse --session <id> to resume a specific session")
     );
+    await flushObservability();
     process.exit(0);
   } else if (options.continue) {
     session = getLastSession();
@@ -494,7 +498,8 @@ async function main() {
 
       case "exit":
         console.log(c.subtext0("Goodbye!"));
-        process.exit(0);
+        await flushObservability();
+    process.exit(0);
 
       default:
         console.log(

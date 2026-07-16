@@ -1,5 +1,9 @@
+---
+name: orchestration
+description: How to route tasks to subagents. Load when delegating work or coordinating multi-step tasks.
+---
+
 # Orchestration
-Description: How to route tasks to subagents. Load when delegating work or coordinating multi-step tasks.
 
 ## Subagents
 
