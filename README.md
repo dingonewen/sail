@@ -18,11 +18,11 @@ Sail is built on **[Mastra](https://mastra.ai)** as the agent runtime. All core 
 ```
 User → CLI (args, config, sessions)
          → SailController (modes, HITL, observability)
-              → Mastra Agent.streamUntilIdle()
-                   → Workspace sandbox (LocalSandbox + LocalFilesystem)
-                   → Memory (LibSQL)
+              → Mastra Agent.stream({ untilIdle: true })
+                   → Workspace (LocalSandbox, LocalFilesystem, BM25, Skills)
+                   → Memory (LibSQL — working, observational, semantic recall)
                    → Subagents (code-reviewer / explorer / fixer)
-                        → TUI (streaming markdown → ANSI, spinner, prompts)
+                   → TUI (streaming markdown → ANSI, spinner, prompts)
 ```
 
 ## Quick Start (from source)
@@ -56,10 +56,39 @@ Supervisor (Sail)
 ```
 
 - **LLM routes tasks** by reading each subagent's description — no hard-coded logic
-- **Tool-level access control** — reviewer & explorer can't write or run commands
-- **Parallel delegation** — `backgroundTasks` + `streamUntilIdle()`
-- **Delegation visibility** — spinner + `→ explorer` / `← explorer` inline display
-- **Delegation hooks** — `onDelegationStart` / `onDelegationComplete` for quality control
+- **Tool-level access control** — reviewer & explorer physically can't write or run commands (only read-only tools injected)
+- **Parallel delegation** — `backgroundTasks` enables concurrent subagent execution
+- **Delegation visibility** — inline `→ reviewer` / `← reviewer` display in the TUI
+
+### Skills (on-demand instructions)
+
+Long-form agent instructions extracted from system prompts into lazy-loaded `SKILL.md` files. Supervisor prompt went from ~30 lines to ~11 (saving ~400 tokens/turn). Skills load via Mastra's auto-generated `skill`/`skill_search`/`skill_read` tools.
+
+```
+~/.sail/skills/
+  orchestration/SKILL.md   — delegation rules & routing logic
+  code-review/SKILL.md      — review checklist & severity format
+  code-exploration/SKILL.md — search strategy & architecture tracing
+  code-fixing/SKILL.md      — edit workflow & verification steps
+```
+
+Users can add custom skills by dropping SKILL.md files into the directory. Override with `SAIL_SKILLS_DIR`.
+
+### Workspace Tools
+
+Sail auto-generates tools from Mastra's workspace — filesystem, sandbox, search, and skills. Custom tools can be added with Mastra's `createTool()`:
+
+| Source | Tools |
+|--------|-------|
+| Workspace — Filesystem | `read_file`, `write_file`, `edit_file`, `list_files`, `delete`, `file_stat`, `mkdir`, `grep` |
+| Workspace — Sandbox | `execute_command`, `get_process_output` |
+| Workspace — Search | `search` (BM25 full-text) |
+| Workspace — Skills | `skill`, `skill_read`, `skill_search` |
+| Custom | `web_fetch` — fetches URLs as plain text |
+
+- **BM25 search** — relevance-ranked code search, faster and smarter than grep
+- **Read-only tools** shared with reviewer & explorer subagents
+- **Dangerous tools** (write, edit, delete, execute) require user approval
 
 ### Memory
 
@@ -70,17 +99,9 @@ Supervisor (Sail)
 | **SemanticRecall** | Vector search — finds relevant past messages by meaning |
 
 - All three processors enabled
-- Compaction uses the same model as the agent (not hardcoded Google)
+- Compaction uses the same model as the agent
 - Embedder auto-detected from provider (OpenAI → text-embedding-3-small, Google → gemini-embedding-001)
 - Disable semantic recall with `SAIL_SEMANTIC_RECALL=false`
-
-### Sandbox
-
-Code execution runs through Mastra's `Workspace` + `LocalSandbox`:
-
-- **OS-level isolation** — seatbelt (macOS) or bubblewrap (Linux)
-- **LocalFilesystem** manages all file operations
-- **Dangerous tools require approval** — no silent execution
 
 ### Human-in-the-Loop
 
@@ -92,19 +113,34 @@ Code execution runs through Mastra's `Workspace` + `LocalSandbox`:
   Choice:
 ```
 
+- `[A]` approve one call, `[D]` deny, `[Y]` approve all for the rest of the session
 - CLI flags: `--approve` (auto-allow), `--no-approve` (auto-deny)
 - `-p` mode auto-approves (no user to prompt)
 
 ### Observability
 
-Structured event recording for debugging and auditing:
+Three-tier observability: local console/file for development, OTLP export for cloud visualization.
 
 ```bash
-SAIL_OBSERVABILITY=console sail "fix the bug"    # inline console output
+# Local (console or JSONL file)
+SAIL_OBSERVABILITY=console sail "fix the bug"
 SAIL_OBSERVABILITY=file sail "fix the bug"       # → ~/.sail/observability.jsonl
+
+# Cloud (Logfire, LangSmith, Jaeger — any OTLP-compatible backend)
+SAIL_OTLP_ENDPOINT=https://logfire-api.pydantic.dev/v1/traces \
+SAIL_OTLP_HEADERS="Authorization=Bearer pk-xxx" \
+sail "fix the bug"
 ```
 
-Records tool calls (name, args, duration), model turns (finish reason, tokens), delegations, and errors. Default off — no TUI noise.
+Or configure once in-session:
+
+```
+/obs logfire setup pk-your-api-key        # save to ~/.sail/config.json
+/obs logfire on                           # enable
+/obs on / /obs off / /obs view 20         # local controls
+```
+
+Records every model turn (prompt, response, tokens, finish reason), tool call (name, full args, full result), delegation, and error — with proper traceId/spanId/parentSpanId for waterfall visualization.
 
 ### Multi-Provider
 
@@ -126,14 +162,14 @@ Tree-structured — branch from any point:
   ├─ ghi11223  (fork) Use OAuth        Jul 14
 ```
 
-`/tree` to browse, `--resume` to pick one, `--fork <id>` to branch.
+`/sessions` to list, `/sessions <n>` to switch, `/rename <name>`, `/tree` to browse, `--resume` to pick one, `--fork <id>` to branch.
 
 ### TUI
 
 - **Markdown → ANSI** — headings, bold, code, tables, links, blockquotes in [Catppuccin Latte](https://github.com/catppuccin/catppuccin) colors
-- **Braille spinner** — `⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏` during agent wait
+- **Braille spinner** — `⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏` during agent think
 - **Typewriter streaming** — token-by-token output
-- **`/` commands** — `/login`, `/model`, `/mode`, `/tree`, `/sessions`, `/clear`, `/exit`
+- **`/` commands** — `/login`, `/model`, `/mode`, `/tree`, `/sessions`, `/rename`, `/obs`, `/clear`, `/exit`
 
 ## Full Options
 
@@ -146,7 +182,7 @@ Options:
   --api-key <key>               API key (defaults to provider env var)
   --print, -p                   Non-interactive mode: process and exit
   --continue, -c                Continue the most recent session
-  --resume, -r                  Select a session to resume
+  --resume, -r                  List recent sessions
   --session <id>                Use a specific session
   --fork <id>                   Fork a session into a new branch
   --name, -n <name>             Session display name
@@ -157,6 +193,7 @@ Options:
   --approve, -a                 Auto-approve all dangerous tools
   --no-approve                  Deny all dangerous tools
   --no-context-files            Disable AGENTS.md / CLAUDE.md loading
+  --obs <mode>                  Observability mode: off, console, file, both
   --list-models [search]        List available models
   --list-providers              List providers and status
   --help, -h                    Show help
@@ -169,11 +206,8 @@ Options:
 pnpm install
 pnpm build
 pnpm typecheck
-pnpm test          # 26 tests across 3 packages
-pnpm test -- --run # CI mode (no watch)
+pnpm test          # 23 tests across 3 packages
 ```
-
-Tests run on every push via GitHub Actions (Node 22 + 24, build + typecheck + test).
 
 ## Config
 
@@ -185,6 +219,10 @@ Multiple providers coexist in `~/.sail/config.json`:
   "providers": {
     "anthropic": { "model": "anthropic/claude-sonnet-4-6", "apiKey": "sk-ant-..." },
     "deepseek":   { "model": "deepseek/deepseek-chat",    "apiKey": "sk-..." }
+  },
+  "otlp": {
+    "endpoint": "https://logfire-api.pydantic.dev/v1/traces",
+    "apiKey": "pk-..."
   }
 }
 ```
@@ -193,8 +231,11 @@ Multiple providers coexist in `~/.sail/config.json`:
 |---|---|
 | `SAIL_MODEL` | Model in `provider/model` format |
 | `SAIL_DB_PATH` | Path to LibSQL database |
-| `SAIL_OBSERVABILITY` | `console` or `file` for event recording |
+| `SAIL_OBSERVABILITY` | `off` / `console` / `file` / `both` |
+| `SAIL_OTLP_ENDPOINT` | OTLP-compatible trace collector URL |
+| `SAIL_OTLP_HEADERS` | Comma-separated `Key=Value` pairs for OTLP auth |
 | `SAIL_SEMANTIC_RECALL` | Set `false` to disable vector search |
+| `SAIL_SKILLS_DIR` | Custom skills directory path |
 
 ## License
 
