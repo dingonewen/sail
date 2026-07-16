@@ -19,6 +19,10 @@ export interface SailConfig {
   tools?: string[];
   excludeTools?: string[];
   verbose?: boolean;
+  otlp?: {
+    endpoint?: string;
+    apiKey?: string;
+  };
 }
 
 const CONFIG_DIR = resolve(homedir(), ".sail");
@@ -56,6 +60,7 @@ function migrateConfig(raw: Record<string, unknown>): SailConfig {
     tools: raw.tools as string[] | undefined,
     excludeTools: raw.excludeTools as string[] | undefined,
     verbose: raw.verbose as boolean | undefined,
+    otlp: raw.otlp as { endpoint?: string; apiKey?: string } | undefined,
   };
 }
 

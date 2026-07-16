@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 import { parseArgs } from "./args.js";
-import { loadConfig, resolveProvider, setDefaultProvider, getProviderConfig } from "./config.js";
+import { loadConfig, resolveProvider, setDefaultProvider, getProviderConfig, saveConfig } from "./config.js";
 import {
   createSession,
   getLastSession,
@@ -324,7 +324,9 @@ async function main() {
         if (!args[0]) {
           // /obs — show current mode
           const mode = getObservabilityMode();
-          console.log(c.subtext0(`Observability: ${c.green(mode)}`));
+          const otlpEnabled = !!process.env.SAIL_OTLP_ENDPOINT;
+          console.log(c.subtext0(`Local: ${c.green(mode)}`));
+          console.log(c.subtext0(`Logfire: ${otlpEnabled ? c.green("on") : c.subtext0("off")}`));
           if (mode === "file" || mode === "both") {
             console.log(c.subtext0(`Log: ${getObservabilityLogPath()}`));
           }
@@ -355,11 +357,50 @@ async function main() {
           } catch {
             console.log(c.peach("Could not read observability log."));
           }
+        } else if (args[0] === "logfire") {
+          if (args[1] === "setup") {
+            if (!args[2]) {
+              console.log(c.subtext0("Usage: /obs logfire setup <api-key> [endpoint]"));
+            } else {
+              const config = loadConfig();
+              config.otlp = {
+                apiKey: args[2],
+                endpoint: args[3] || "https://logfire-api.pydantic.dev/v1/traces",
+              };
+              saveConfig(config);
+              process.env.SAIL_OTLP_ENDPOINT = config.otlp.endpoint;
+              process.env.SAIL_OTLP_HEADERS = `Authorization=Bearer ${config.otlp.apiKey}`;
+              console.log(c.green("Logfire configured and enabled."));
+            }
+          } else if (args[1] === "on") {
+            const config = loadConfig();
+            if (!config.otlp?.apiKey) {
+              console.log(c.peach("No Logfire config found. Run /obs logfire setup first."));
+            } else {
+              process.env.SAIL_OTLP_ENDPOINT = config.otlp.endpoint || "https://logfire-api.pydantic.dev/v1/traces";
+              process.env.SAIL_OTLP_HEADERS = `Authorization=Bearer ${config.otlp.apiKey}`;
+              console.log(c.green("Logfire enabled."));
+            }
+          } else if (args[1] === "off") {
+            delete process.env.SAIL_OTLP_ENDPOINT;
+            delete process.env.SAIL_OTLP_HEADERS;
+            console.log(c.subtext0("Logfire disabled."));
+          } else {
+            const config = loadConfig();
+            if (config.otlp?.apiKey) {
+              console.log(c.subtext0(`Logfire configured: ${c.green(config.otlp.endpoint || "default endpoint")}`));
+              console.log(c.subtext0(`Use ${c.green("/obs logfire on")} to enable, ${c.peach("/obs logfire off")} to disable.`));
+            } else {
+              console.log(c.subtext0(`Use ${c.green("/obs logfire setup")} to configure Logfire.`));
+            }
+          }
         } else {
-          // /obs off|console|file|both — set mode
-          const valid = ["off", "console", "file", "both"];
+          // /obs off|on|console|file|both — set mode
+          const modeMap: Record<string, string> = { on: "console" };
+          const mode = modeMap[args[0]] || args[0];
+          const valid = ["off", "on", "console", "file", "both"];
           if (valid.includes(args[0])) {
-            setObservabilityMode(args[0] as "off" | "console" | "file" | "both");
+            setObservabilityMode(mode as "off" | "console" | "file" | "both");
             console.log(c.green(`Observability set to: ${args[0]}`));
           } else {
             console.log(c.peach(`Invalid mode. Use: ${valid.join(", ")}`));
