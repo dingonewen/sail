@@ -144,11 +144,7 @@ export class SailController {
             output: step.usage.outputTokens,
           } : undefined, Date.now() - t0);
 
-          // Record all tool calls from this step
-          for (const tc of step?.toolCalls ?? []) {
-            const p = tc.payload ?? tc;
-            recordToolCall(p.toolName ?? "?", p.args ?? {}, p.output ?? "ok", 0);
-          }
+          // Record tool results (has both tool name and output)
           for (const tr of step?.toolResults ?? []) {
             const p = tr.payload ?? tr;
             recordToolCall(p.toolName ?? "?", p.args ?? {}, p.result ?? "ok", 0);
@@ -162,6 +158,7 @@ export class SailController {
       }
 
       onFinish?.();
+      await flushObservability();
       return await mastraStream;
     } catch (error) {
       recordError((error as Error).message);

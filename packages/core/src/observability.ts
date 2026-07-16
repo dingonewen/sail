@@ -90,7 +90,7 @@ function getTraceId(): string {
   return _traceId;
 }
 
-let _activeParentSpanId: string | null = null;
+let _currentModelTurnSpanId: string | null = null;
 
 interface OtlpAttribute {
   key: string;
@@ -98,8 +98,8 @@ interface OtlpAttribute {
 }
 
 interface OtlpSpan {
-  traceId: string;
-  spanId: string;
+  traceId: string;   // 32-bit hex
+  spanId: string;    // 16-bix hex
   parentSpanId?: string;
   name: string;
   kind: number;
@@ -152,8 +152,8 @@ function emitOtlpSpan(
   endTimeUnixNano: string,
   attributes: OtlpAttribute[],
   parentSpanId?: string,
-): void {
-  if (!ensureOtlpStarted()) return;
+): string {
+  if (!ensureOtlpStarted()) return "";
 
   const spanId = hex16();
   const span: OtlpSpan = {
@@ -167,12 +167,11 @@ function emitOtlpSpan(
       attr("service.name", "sail"),
       ...attributes,
     ],
-    status: { code: 1 }, // OK
+    status: { code: 1 },
   };
-  if (parentSpanId || _activeParentSpanId) {
-    span.parentSpanId = parentSpanId ?? _activeParentSpanId ?? undefined;
-  }
+  if (parentSpanId) span.parentSpanId = parentSpanId;
   addSpan(span);
+  return spanId;
 }
 
 async function flushOtlp(): Promise<void> {
@@ -221,7 +220,7 @@ export function recordToolCall(
     attr("tool.name", name),
     attr("tool.duration_ms", durationMs),
     attr("tool.approved", approved ?? false),
-  ]);
+  ], _currentModelTurnSpanId ?? undefined);
 }
 
 /** Record an LLM inference step */
@@ -234,9 +233,7 @@ export function recordModelTurn(
   const start = durationMs
     ? (BigInt(now) - BigInt(durationMs) * 1_000_000n).toString()
     : now;
-  const parentId = hex16();
-  _activeParentSpanId = parentId;
-  emitOtlpSpan(`model_turn`, 1 /* INTERNAL */, start, now, [
+  _currentModelTurnSpanId = emitOtlpSpan(`model_turn`, 1 /* INTERNAL */, start, now, [
     attr("gen_ai.operation.name", "chat"),
     attr("gen_ai.response.finish_reason", finishReason),
     attr("gen_ai.usage.input_tokens", tokens?.input ?? 0),
