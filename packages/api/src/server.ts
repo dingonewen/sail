@@ -1,9 +1,14 @@
 import Fastify from "fastify";
 import cors from "@fastify/cors";
+import fastifyStatic from "@fastify/static";
+import { resolve, dirname } from "node:path";
+import { fileURLToPath } from "node:url";
 import { autoApplyProvider, loadConfig } from "@sail/core";
 import { JobQueue } from "./queue.js";
 import { startWorker } from "./worker.js";
 import { chatRoutes } from "./routes/chat.js";
+
+const __dirname = dirname(fileURLToPath(import.meta.url));
 
 const PORT = parseInt(process.env.SAIL_API_PORT || "3000", 10);
 const HOST = process.env.SAIL_API_HOST || "0.0.0.0";
@@ -31,7 +36,14 @@ export async function buildServer() {
   // Inject queue into routes so they're testable with a mock.
   await app.register(chatRoutes(queue));
 
-  // ── Root — friendly landing page ──
+  // ── Static test pages — open http://localhost:3000/test/vanilla ──
+  // Serves packages/api/test/ so you don't need to find the files on disk.
+  await app.register(fastifyStatic, {
+    root: resolve(__dirname, "..", "test"),
+    prefix: "/test/",
+  });
+
+  // ── Root — links to test pages ──
   app.get("/", async (_req, reply) => {
     reply.type("text/html").send(`<!DOCTYPE html>
 <html lang="en">
@@ -50,7 +62,8 @@ export async function buildServer() {
     <li><code>GET /chat/:taskId</code> — poll for result</li>
     <li><code>GET /health</code> — health check</li>
   </ul>
-  <p><a href="/health">→ Health check</a></p>
+  <p><a href="/test/test-vanilla.html">→ Vanilla JS test page</a></p>
+  <p><a href="/test/test-react.html">→ React test page</a></p>
 </body></html>`);
   });
 
