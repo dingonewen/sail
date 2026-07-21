@@ -43,17 +43,90 @@ const READ_ONLY_TOOLS = new Set([
   "mastra_workspace_search",
   "mastra_workspace_get_process_output",
   "web_fetch",
+  "recall",
+  "retain",
 ]);
 
 export async function getAgent(): Promise<Agent> {
   if (_agent) return _agent;
 
   const workspace = createSailWorkspace();
+  const memory = createMemory();
+
+  // ── Agent-initiated memory tools ──
+  const recallTool = createTool({
+    id: "recall",
+    description:
+      "Search past conversation history for relevant messages. " +
+      "Use when you need context from previous turns or sessions — e.g. 'what did we discuss about auth?', " +
+      "'have we fixed this bug before?'. Returns ranked message snippets.",
+    inputSchema: z.object({
+      query: z.string().describe("What to search for in past conversations"),
+      limit: z.number().default(5).describe("Max results to return"),
+    }),
+    execute: async (params, ctx) => {
+      const threadId = ctx.agent?.threadId;
+      const resourceId = ctx.agent?.resourceId || "default-user";
+      if (!threadId) return { results: "No active session thread." };
+      try {
+        const result = await memory.recall({
+          threadId,
+          resourceId,
+          vectorSearchString: params.query,
+          perPage: params.limit,
+          page: 1,
+        });
+        const messages = result?.messages ?? [];
+        if (messages.length === 0) return { results: "No relevant past messages found." };
+        return {
+          results: messages
+            .map((m: any) => `[${m.role}] ${(m.content ?? m.text ?? "").slice(0, 500)}`)
+            .join("\n---\n"),
+        };
+      } catch (e: any) {
+        return { error: `Recall failed: ${e.message}` };
+      }
+    },
+  });
+
+  const retainTool = createTool({
+    id: "retain",
+    description:
+      "Remember a fact for future reference. The fact will be available in later conversations. " +
+      "Use when you learn something worth remembering — e.g. user preferences, project conventions, " +
+      "decisions made. Be concise — one sentence per fact.",
+    inputSchema: z.object({
+      fact: z.string().describe("A concise fact to remember for future sessions"),
+    }),
+    execute: async (params, ctx) => {
+      const threadId = ctx.agent?.threadId;
+      const resourceId = ctx.agent?.resourceId || "default-user";
+      if (!threadId) return { status: "No active session to retain into." };
+      try {
+        await memory.saveMessages({
+          messages: [{
+            id: `mem-${Date.now()}`,
+            role: "system",
+            content: `[remembered fact] ${params.fact}`,
+            createdAt: new Date(),
+            threadId,
+            resourceId,
+          } as any],
+          memoryConfig: { lastMessages: 50, semanticRecall: false } as any,
+        });
+        return { status: `Remembered: "${params.fact}"` };
+      } catch (e: any) {
+        return { error: `Retain failed: ${e.message}` };
+      }
+    },
+  });
+
   const allTools = {
     ...(await createWorkspaceTools(workspace)),
     web_fetch: webFetchTool,
+    recall: recallTool,
+    retain: retainTool,
   };
-  const memory = createMemory();
 
   // Split tools: read-only for reviewer/explorer, full set for fixer
   const readOnlyTools: Record<string, any> = {};
