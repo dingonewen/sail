@@ -5,7 +5,11 @@ import {
   getProviderConfig,
   isConfigured as configIsConfigured,
   isProviderConfigured as configIsProviderConfigured,
+  getProvider,
+  applyProvider,
+  PROVIDERS,
   type SailConfig,
+  type ProviderInfo,
 } from "./config.js";
 import chalk from "chalk";
 
@@ -19,39 +23,8 @@ const c = {
   subtext0: chalk.hex("#6c6f85"),
 };
 
-export interface ProviderInfo {
-  id: string;
-  name: string;
-  envVar: string;
-  defaultModel: string;
-}
-
-const PROVIDERS: ProviderInfo[] = [
-  {
-    id: "anthropic",
-    name: "Anthropic (Claude)",
-    envVar: "ANTHROPIC_API_KEY",
-    defaultModel: "anthropic/claude-sonnet-4-6",
-  },
-  {
-    id: "openai",
-    name: "OpenAI (GPT)",
-    envVar: "OPENAI_API_KEY",
-    defaultModel: "openai/gpt-5.5",
-  },
-  {
-    id: "google",
-    name: "Google (Gemini)",
-    envVar: "GOOGLE_API_KEY",
-    defaultModel: "google/gemini-pro",
-  },
-  {
-    id: "deepseek",
-    name: "DeepSeek",
-    envVar: "DEEPSEEK_API_KEY",
-    defaultModel: "deepseek/deepseek-chat",
-  },
-];
+// ProviderInfo, PROVIDERS, getProvider, applyProvider are imported from ./config.js
+// which re-exports from @sail/core.
 
 function ask(question: string): Promise<string> {
   return new Promise((resolve) => {
@@ -63,62 +36,12 @@ function ask(question: string): Promise<string> {
   });
 }
 
-/** Look up a provider by id */
-export function getProvider(id: string): ProviderInfo | undefined {
-  return PROVIDERS.find((p) => p.id === id.toLowerCase());
-}
-
 // Re-export config checks (delegate to config.ts)
 export { configIsConfigured as isConfigured };
 export { configIsProviderConfigured as isProviderConfigured };
 
-/** Resolve the API key for a provider: CLI flag > saved config > env var */
-export function resolveApiKey(
-  providerId: string,
-  cliKey?: string
-): string | undefined {
-  if (cliKey) return cliKey;
-  const saved = getProviderConfig(providerId);
-  if (saved?.apiKey) return saved.apiKey;
-  const provider = getProvider(providerId);
-  if (provider) return process.env[provider.envVar];
-  return undefined;
-}
-
-/** Resolve the model for a provider: CLI flag > saved config > provider default */
-export function resolveModel(
-  providerId: string,
-  cliModel?: string
-): string {
-  if (cliModel) return cliModel;
-  const saved = getProviderConfig(providerId);
-  if (saved?.model) return saved.model;
-  const provider = getProvider(providerId);
-  return provider?.defaultModel ?? "";
-}
-
-/** Apply provider config to process.env so Mastra picks it up */
-export function applyProvider(
-  providerId: string,
-  cliModel?: string,
-  cliKey?: string
-): ProviderInfo {
-  const provider = getProvider(providerId);
-  if (!provider) {
-    throw new Error(
-      `Unknown provider: ${providerId}. Run --list-providers to see supported providers.`
-    );
-  }
-
-  process.env.SAIL_MODEL = resolveModel(providerId, cliModel);
-
-  const key = resolveApiKey(providerId, cliKey);
-  if (key) {
-    process.env[provider.envVar] = key;
-  }
-
-  return provider;
-}
+// Re-export functions moved to @sail/core — main.ts still imports from here
+export { getProvider, applyProvider } from "./config.js";
 
 /** Run the setup wizard — always prompts, even if env var exists */
 export async function runSetup(preferredProviderId?: string): Promise<SailConfig> {

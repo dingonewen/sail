@@ -5,3 +5,20 @@ export { SailController } from "./controller.js";
 export type { AgentMode } from "./controller.js";
 export { createSailWorkspace } from "./workspace.js";
 export { createSubagents } from "./subagents.js";
+export {
+  loadConfig,
+  saveConfig,
+  getProviderConfig,
+  getActiveProviderConfig,
+  resolveProvider,
+  saveProviderConfig,
+  setDefaultProvider,
+  isConfigured,
+  isProviderConfigured,
+  getConfigDir,
+  getProvider,
+  applyProvider,
+  autoApplyProvider,
+  PROVIDERS,
+} from "./config.js";
+export type { SailConfig, ProviderConfig, ProviderInfo } from "./config.js";
