@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Sail API — Vanilla JS Test</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: system-ui, sans-serif; max-width: 800px; margin: 0 auto; padding: 20px; background: #1e1e2e; color: #cdd6f4; }
+    h1 { color: #cba6f7; margin-bottom: 20px; }
+    label { display: block; font-size: 13px; color: #a6adc8; margin-bottom: 4px; }
+    input, select, textarea { width: 100%; padding: 8px 12px; border: 1px solid #45475a; border-radius: 6px; background: #313244; color: #cdd6f4; font-size: 14px; }
+    textarea { resize: vertical; min-height: 60px; }
+    button { padding: 8px 20px; background: #cba6f7; color: #1e1e2e; border: none; border-radius: 6px; font-size: 14px; font-weight: 600; cursor: pointer; }
+    button:hover { background: #b4befe; }
+    .row { display: flex; gap: 12px; margin-bottom: 12px; }
+    .row > div { flex: 1; }
+    .stats { display: flex; gap: 16px; margin: 24px 0 12px; }
+    .stat { flex: 1; padding: 12px; background: #313244; border-radius: 8px; text-align: center; }
+    .stat .num { font-size: 28px; font-weight: 700; color: #cba6f7; }
+    .stat .label { font-size: 11px; color: #a6adc8; }
+    .job { border: 1px solid #45475a; border-radius: 8px; padding: 16px; margin-bottom: 12px; background: #313244; }
+    .job-top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; }
+    .job-id { font-family: monospace; font-size: 12px; color: #89b4fa; }
+    .badge { font-size: 12px; font-weight: 600; padding: 2px 8px; border-radius: 4px; }
+    .badge-queued { background: #45475a; color: #a6adc8; }
+    .badge-running { background: #1e66f5; color: #fff; }
+    .badge-done { background: #40a02b; color: #fff; }
+    .badge-failed { background: #d20f39; color: #fff; }
+    .job-result { font-size: 13px; color: #a6adc8; white-space: pre-wrap; background: #1e1e2e; padding: 10px; border-radius: 4px; max-height: 400px; overflow-y: auto; line-height: 1.5; margin-top: 6px; }
+    .job-error { color: #f38ba8; font-size: 13px; margin-top: 6px; }
+  </style>
+</head>
+<body>
+  <h1>Sail API — Vanilla JS</h1>
+
+  <div class="row">
+    <div style="flex:3">
+      <label>Message</label>
+      <textarea id="msg" placeholder="Ask Sail something..."></textarea>
+    </div>
+  </div>
+
+  <div class="row">
+    <div><label>User ID</label><input id="uid" placeholder="anonymous" /></div>
+    <div><label>Conversation ID</label><input id="cid" placeholder="auto-generated" /></div>
+    <div style="flex:0 0 120px"><label>Mode</label><select id="mode"><option>chat</option><option>plan</option><option>build</option></select></div>
+  </div>
+
+  <button id="sendBtn">Send</button>
+
+  <div class="stats">
+    <div class="stat"><div class="num" id="statQueued">0</div><div class="label">Queued</div></div>
+    <div class="stat"><div class="num" id="statRunning">0</div><div class="label">Running</div></div>
+    <div class="stat"><div class="num" id="statDone">0</div><div class="label">Done</div></div>
+  </div>
+
+  <div id="jobList"></div>
+
+  <script>
+    const API = "http://localhost:3000";
+    const jobs = {}; // taskId → job
+
+    document.getElementById("sendBtn").addEventListener("click", send);
+    document.getElementById("msg").addEventListener("keydown", (e) => {
+      if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(); }
+    });
+
+    async function send() {
+      const msg = document.getElementById("msg").value.trim();
+      if (!msg) return;
+
+      const btn = document.getElementById("sendBtn");
+      btn.disabled = true;
+      try {
+        const res = await fetch(`${API}/chat`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            message: msg,
+            userId: document.getElementById("uid").value || undefined,
+            conversationId: document.getElementById("cid").value || undefined,
+            mode: document.getElementById("mode").value,
+          }),
+        });
+        const job = await res.json();
+        jobs[job.taskId] = { ...job, prompt: msg, mode: document.getElementById("mode").value, createdAt: Date.now() };
+        document.getElementById("msg").value = "";
+        render();
+      } catch (err) {
+        alert("Error: " + err.message);
+      } finally {
+        btn.disabled = false;
+      }
+    }
+
+    async function poll() {
+      const pending = Object.entries(jobs).filter(([, j]) => j.status === "queued" || j.status === "running");
+      for (const [taskId] of pending) {
+        try {
+          const res = await fetch(`${API}/chat/${taskId}`);
+          jobs[taskId] = { ...jobs[taskId], ...(await res.json()) };
+        } catch { /* ignore */ }
+      }
+      render();
+    }
+
+    function render() {
+      const list = Object.values(jobs).sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+      let q = 0, r = 0, d = 0;
+      list.forEach(j => { if (j.status === "queued") q++; if (j.status === "running") r++; if (j.status === "done") d++; });
+      document.getElementById("statQueued").textContent = q;
+      document.getElementById("statRunning").textContent = r;
+      document.getElementById("statDone").textContent = d;
+
+      document.getElementById("jobList").innerHTML = list.map(j => `
+        <div class="job">
+          <div class="job-top">
+            <span class="job-id">${esc(j.taskId?.slice(0, 8))} — ${esc(j.mode)}</span>
+            <span class="badge badge-${j.status}">${j.status}</span>
+          </div>
+          <div>${esc(j.prompt.slice(0, 100))}</div>
+          ${j.result ? `<div class="job-result">${esc(j.result)}</div>` : ""}
+          ${j.error ? `<div class="job-error">${esc(j.error)}</div>` : ""}
+        </div>
+      `).join("");
+    }
+
+    function esc(s) {
+      const d = document.createElement("div");
+      d.textContent = s || "";
+      return d.innerHTML;
+    }
+
+    setInterval(poll, 2000);
+  </script>
+</body>
+</html>

@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Sail API Test</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: system-ui, sans-serif; max-width: 800px; margin: 0 auto; padding: 20px; background: #1e1e2e; color: #cdd6f4; }
+    h1 { color: #cba6f7; margin-bottom: 20px; }
+    label { display: block; font-size: 13px; color: #a6adc8; margin-bottom: 4px; }
+    input, select, textarea { width: 100%; padding: 8px 12px; border: 1px solid #45475a; border-radius: 6px; background: #313244; color: #cdd6f4; font-size: 14px; }
+    textarea { resize: vertical; min-height: 60px; }
+    button { padding: 8px 20px; background: #cba6f7; color: #1e1e2e; border: none; border-radius: 6px; font-size: 14px; font-weight: 600; cursor: pointer; }
+    button:hover { background: #b4befe; }
+    button:disabled { opacity: 0.5; cursor: not-allowed; }
+    .form-row { display: flex; gap: 12px; margin-bottom: 12px; }
+    .form-row > div { flex: 1; }
+    .stats { display: flex; gap: 16px; margin: 24px 0 12px; }
+    .stat { flex: 1; padding: 12px; background: #313244; border-radius: 8px; text-align: center; }
+    .stat .num { font-size: 28px; font-weight: 700; color: #cba6f7; }
+    .stat .label { font-size: 11px; color: #a6adc8; }
+    .job { border: 1px solid #45475a; border-radius: 8px; padding: 16px; margin-bottom: 12px; background: #313244; }
+    .job-top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; }
+    .job-id { font-family: monospace; font-size: 12px; color: #89b4fa; }
+    .badge { font-size: 12px; font-weight: 600; padding: 2px 8px; border-radius: 4px; }
+    .badge-queued { background: #45475a; color: #a6adc8; }
+    .badge-running { background: #1e66f5; color: #fff; }
+    .badge-done { background: #40a02b; color: #fff; }
+    .badge-failed { background: #d20f39; color: #fff; }
+    .job-prompt { font-size: 14px; margin-bottom: 6px; }
+    .job-result { font-size: 13px; color: #a6adc8; white-space: pre-wrap; background: #1e1e2e; padding: 10px; border-radius: 4px; max-height: 400px; overflow-y: auto; line-height: 1.5; }
+    .job-error { color: #f38ba8; font-size: 13px; margin-top: 6px; }
+  </style>
+</head>
+<body>
+  <div id="root"></div>
+
+  <!-- Vanilla React: no build tools, load from CDN via import maps -->
+  <script type="importmap">
+  {
+    "imports": {
+      "react": "https://esm.sh/react@18.3.1",
+      "react-dom/client": "https://esm.sh/react-dom@18.3.1/client"
+    }
+  }
+  </script>
+
+  <script type="module">
+    import React, { useState, useEffect, useCallback, useRef } from "react";
+    import { createRoot } from "react-dom/client";
+
+    const API = "http://localhost:3000";
+
+    // ── Stats card ──
+    function Stats({ jobs }) {
+      return (
+        <div className="stats">
+          <div className="stat"><div className="num">{jobs.filter(j => j.status === "queued").length}</div><div className="label">Queued</div></div>
+          <div className="stat"><div className="num">{jobs.filter(j => j.status === "running").length}</div><div className="label">Running</div></div>
+          <div className="stat"><div className="num">{jobs.filter(j => j.status === "done").length}</div><div className="label">Done</div></div>
+        </div>
+      );
+    }
+
+    // ── Single job row ──
+    function JobCard({ job }) {
+      return (
+        <div className="job">
+          <div className="job-top">
+            <span className="job-id">{job.taskId.slice(0, 8)} — {job.mode || "chat"}</span>
+            <span className={"badge badge-" + job.status}>{job.status}</span>
+          </div>
+          <div className="job-prompt">{job.prompt.slice(0, 100)}</div>
+          {job.result && <div className="job-result">{job.result}</div>}
+          {job.error && <div className="job-error">{job.error}</div>}
+        </div>
+      );
+    }
+
+    // ── Main app ──
+    function App() {
+      const [message, setMessage] = useState("");
+      const [userId, setUserId] = useState("");
+      const [conversationId, setConversationId] = useState("");
+      const [mode, setMode] = useState("chat");
+      const [sending, setSending] = useState(false);
+      const [jobs, setJobs] = useState({});  // taskId → job object
+      const pollingRef = useRef(null);
+
+      // Poll pending jobs every 2s
+      useEffect(() => {
+        pollingRef.current = setInterval(async () => {
+          const entries = Object.entries(jobs);
+          const pending = entries.filter(
+            ([, j]) => j.status === "queued" || j.status === "running"
+          );
+          if (pending.length === 0) return;
+
+          const updates = {};
+          for (const [taskId] of pending) {
+            try {
+              const res = await fetch(`${API}/chat/${taskId}`);
+              updates[taskId] = await res.json();
+            } catch { /* ignore */ }
+          }
+          if (Object.keys(updates).length > 0) {
+            setJobs(prev => ({ ...prev, ...updates }));
+          }
+        }, 2000);
+        return () => clearInterval(pollingRef.current);
+      }, [jobs]);
+
+      const sendMessage = useCallback(async () => {
+        const text = message.trim();
+        if (!text) return;
+        setSending(true);
+        try {
+          const res = await fetch(`${API}/chat`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              message: text,
+              userId: userId || undefined,
+              conversationId: conversationId || undefined,
+              mode,
+            }),
+          });
+          const job = await res.json();
+          setJobs(prev => ({ [job.taskId]: { ...job, prompt: text, mode }, ...prev }));
+          setMessage("");
+        } catch (err) {
+          alert("Error: " + err.message);
+        } finally {
+          setSending(false);
+        }
+      }, [message, userId, conversationId, mode]);
+
+      const handleKeyDown = (e) => {
+        if (e.key === "Enter" && !e.shiftKey) {
+          e.preventDefault();
+          sendMessage();
+        }
+      };
+
+      const jobList = Object.values(jobs).sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+
+      return (
+        <div>
+          <h1>Sail API Test</h1>
+
+          <div className="form-row">
+            <div style={{flex: 3}}>
+              <label>Message (Enter to send, Shift+Enter for newline)</label>
+              <textarea
+                value={message}
+                onChange={e => setMessage(e.target.value)}
+                onKeyDown={handleKeyDown}
+                placeholder="Ask Sail something..."
+              />
+            </div>
+          </div>
+
+          <div className="form-row">
+            <div><label>User ID</label><input value={userId} onChange={e => setUserId(e.target.value)} placeholder="anonymous" /></div>
+            <div><label>Conversation ID</label><input value={conversationId} onChange={e => setConversationId(e.target.value)} placeholder="auto-generated" /></div>
+            <div style={{flex: "0 0 120px"}}><label>Mode</label><select value={mode} onChange={e => setMode(e.target.value)}><option value="chat">chat</option><option value="plan">plan</option><option value="build">build</option></select></div>
+          </div>
+
+          <button onClick={sendMessage} disabled={sending || !message.trim()}>
+            {sending ? "Sending..." : "Send"}
+          </button>
+
+          <Stats jobs={jobList} />
+
+          {jobList.map(job => <JobCard key={job.taskId} job={job} />)}
+        </div>
+      );
+    }
+
+    createRoot(document.getElementById("root")).render(<App />);
+  </script>
+</body>
+</html>
