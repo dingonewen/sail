@@ -154,6 +154,10 @@ Use the \`skill\` tool to load the orchestration skill for delegation rules.
 Use \`skill_search\` to discover available skills, \`skill_read\` to load them.
 Your skills include: orchestration, code-review, code-exploration, code-fixing.
 
+## Memory
+Use \`recall\` to search past conversations for facts you don't already have in context.
+Use \`retain\` to remember important facts for future sessions.
+
 ## Safety
 Dangerous tools require user approval. Never run destructive commands without explicit direction.
 `,
