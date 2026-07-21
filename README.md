@@ -102,6 +102,7 @@ Sail auto-generates tools from Mastra's workspace — filesystem, sandbox, searc
 - Compaction uses the same model as the agent
 - Embedder auto-detected from provider (OpenAI → text-embedding-3-small, Google → gemini-embedding-001)
 - Disable semantic recall with `SAIL_SEMANTIC_RECALL=false`
+- **Agent-initiated memory tools** — `recall` searches past conversations across threads; `retain` saves facts for future sessions. Both available to reviewer/explorer
 
 ### Human-in-the-Loop
 
@@ -140,7 +141,7 @@ Or configure once in-session:
 /obs on / /obs off / /obs view 20         # local controls
 ```
 
-Records every model turn (prompt, response, tokens, finish reason), tool call (name, full args, full result), delegation, and error — with proper traceId/spanId/parentSpanId for waterfall visualization.
+Records every model turn (prompt, response, tokens, finish reason), tool call (name, full args, full result), delegation, and error — with proper traceId/spanId/parentSpanId for waterfall visualization. **Trace IDs are tied to session thread IDs** — continuing a session reuses the same Logfire trace, forking creates a new one.
 
 ### Multi-Provider
 
