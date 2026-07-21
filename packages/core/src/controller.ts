@@ -1,5 +1,5 @@
 import { getAgent } from "./agent.js";
-import { recordToolCall, recordModelTurn, recordDelegation, recordError, flushObservability } from "./observability.js";
+import { recordToolCall, recordModelTurn, recordDelegation, recordError, flushObservability, setTraceId } from "./observability.js";
 
 export type AgentMode = "chat" | "plan" | "build";
 
@@ -93,6 +93,7 @@ export class SailController {
 
     const fullPrompt = this.buildPrompt(prompt);
     const threadId = thread || `thread-${Date.now()}`;
+    setTraceId(threadId);
     const t0 = Date.now();
     let textLen = 0;
 
@@ -188,6 +189,7 @@ export class SailController {
 
     const fullPrompt = this.buildPrompt(prompt);
     const threadId = thread || `thread-${Date.now()}`;
+    setTraceId(threadId);
     const t0 = Date.now();
 
     const agent = await getAgent();

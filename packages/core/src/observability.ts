@@ -90,6 +90,12 @@ function getTraceId(): string {
   return _traceId;
 }
 
+/** Set the trace ID from an external source (e.g. Mastra threadId). */
+export function setTraceId(id: string): void {
+  // OTLP requires 32 hex chars; strip hyphens from UUIDs
+  _traceId = id.replace(/-/g, "").slice(0, 32).padEnd(32, "0");
+}
+
 let _currentModelTurnSpanId: string | null = null;
 
 interface OtlpAttribute {
