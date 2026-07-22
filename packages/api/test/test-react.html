@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Sail API Test</title>
+  <title>Sail API — React</title>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body { font-family: system-ui, sans-serif; max-width: 800px; margin: 0 auto; padding: 20px; background: #1e1e2e; color: #cdd6f4; }
@@ -14,8 +14,8 @@
     button { padding: 8px 20px; background: #cba6f7; color: #1e1e2e; border: none; border-radius: 6px; font-size: 14px; font-weight: 600; cursor: pointer; }
     button:hover { background: #b4befe; }
     button:disabled { opacity: 0.5; cursor: not-allowed; }
-    .form-row { display: flex; gap: 12px; margin-bottom: 12px; }
-    .form-row > div { flex: 1; }
+    .row { display: flex; gap: 12px; margin-bottom: 12px; }
+    .row > div { flex: 1; }
     .stats { display: flex; gap: 16px; margin: 24px 0 12px; }
     .stat { flex: 1; padding: 12px; background: #313244; border-radius: 8px; text-align: center; }
     .stat .num { font-size: 28px; font-weight: 700; color: #cba6f7; }
@@ -23,76 +23,76 @@
     .job { border: 1px solid #45475a; border-radius: 8px; padding: 16px; margin-bottom: 12px; background: #313244; }
     .job-top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; }
     .job-id { font-family: monospace; font-size: 12px; color: #89b4fa; }
-    .badge { font-size: 12px; font-weight: 600; padding: 2px 8px; border-radius: 4px; }
+    .badge { font-size: 12px; font-weight: 600; padding: 2px 8px; border-radius: 4px; display: inline-block; }
     .badge-queued { background: #45475a; color: #a6adc8; }
     .badge-running { background: #1e66f5; color: #fff; }
     .badge-done { background: #40a02b; color: #fff; }
     .badge-failed { background: #d20f39; color: #fff; }
-    .job-prompt { font-size: 14px; margin-bottom: 6px; }
-    .job-result { font-size: 13px; color: #a6adc8; white-space: pre-wrap; background: #1e1e2e; padding: 10px; border-radius: 4px; max-height: 400px; overflow-y: auto; line-height: 1.5; }
+    .job-result { font-size: 13px; color: #a6adc8; white-space: pre-wrap; background: #1e1e2e; padding: 10px; border-radius: 4px; max-height: 400px; overflow-y: auto; line-height: 1.5; margin-top: 6px; }
     .job-error { color: #f38ba8; font-size: 13px; margin-top: 6px; }
+    .error-banner { background: #d20f39; color: #fff; padding: 10px 16px; border-radius: 6px; margin-bottom: 16px; }
   </style>
 </head>
 <body>
-  <div id="root"></div>
+  <div id="root">Loading React...</div>
 
-  <!-- Vanilla React: no build tools, load from CDN via import maps -->
-  <script type="importmap">
-  {
-    "imports": {
-      "react": "https://esm.sh/react@18.3.1",
-      "react-dom/client": "https://esm.sh/react-dom@18.3.1/client"
-    }
-  }
-  </script>
+  <!-- React 18 from unpkg (more reliable from China than esm.sh) -->
+  <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+  <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
 
-  <script type="module">
-    import React, { useState, useEffect, useCallback, useRef } from "react";
-    import { createRoot } from "react-dom/client";
+  <script>
+    const { useState, useEffect, useCallback, useRef } = React;
+    const { createRoot } = ReactDOM;
 
     const API = "http://localhost:3000";
 
-    // ── Stats card ──
     function Stats({ jobs }) {
-      return (
-        <div className="stats">
-          <div className="stat"><div className="num">{jobs.filter(j => j.status === "queued").length}</div><div className="label">Queued</div></div>
-          <div className="stat"><div className="num">{jobs.filter(j => j.status === "running").length}</div><div className="label">Running</div></div>
-          <div className="stat"><div className="num">{jobs.filter(j => j.status === "done").length}</div><div className="label">Done</div></div>
-        </div>
+      return React.createElement("div", { className: "stats" },
+        React.createElement("div", { className: "stat" },
+          React.createElement("div", { className: "num" }, jobs.filter(j => j.status === "queued").length),
+          React.createElement("div", { className: "label" }, "Queued")
+        ),
+        React.createElement("div", { className: "stat" },
+          React.createElement("div", { className: "num" }, jobs.filter(j => j.status === "running").length),
+          React.createElement("div", { className: "label" }, "Running")
+        ),
+        React.createElement("div", { className: "stat" },
+          React.createElement("div", { className: "num" }, jobs.filter(j => j.status === "done").length),
+          React.createElement("div", { className: "label" }, "Done")
+        )
       );
     }
 
-    // ── Single job row ──
     function JobCard({ job }) {
-      return (
-        <div className="job">
-          <div className="job-top">
-            <span className="job-id">{job.taskId.slice(0, 8)} — {job.mode || "chat"}</span>
-            <span className={"badge badge-" + job.status}>{job.status}</span>
-          </div>
-          <div className="job-prompt">{job.prompt.slice(0, 100)}</div>
-          {job.result && <div className="job-result">{job.result}</div>}
-          {job.error && <div className="job-error">{job.error}</div>}
-        </div>
+      return React.createElement("div", { className: "job" },
+        React.createElement("div", { className: "job-top" },
+          React.createElement("span", { className: "job-id" }, (job.taskId || "").slice(0, 8) + " — " + (job.mode || "chat")),
+          React.createElement("span", { className: "badge badge-" + job.status }, job.status)
+        ),
+        React.createElement("div", { className: "job-prompt" }, (job.prompt || "").slice(0, 100)),
+        job.result ? React.createElement("div", { className: "job-result" }, job.result) : null,
+        job.error ? React.createElement("div", { className: "job-error" }, job.error) : null
       );
     }
 
-    // ── Main app ──
     function App() {
       const [message, setMessage] = useState("");
       const [userId, setUserId] = useState("");
       const [conversationId, setConversationId] = useState("");
       const [mode, setMode] = useState("chat");
       const [sending, setSending] = useState(false);
-      const [jobs, setJobs] = useState({});  // taskId → job object
-      const pollingRef = useRef(null);
+      const [jobs, setJobs] = useState({});
+      const [error, setError] = useState(null);
+      const jobsRef = useRef(jobs);
 
-      // Poll pending jobs every 2s
+      // Keep ref in sync so polling closure always sees latest jobs
+      jobsRef.current = jobs;
+
+      // Poll once on mount, never re-create interval
       useEffect(() => {
-        pollingRef.current = setInterval(async () => {
-          const entries = Object.entries(jobs);
-          const pending = entries.filter(
+        const id = setInterval(async () => {
+          const current = jobsRef.current;
+          const pending = Object.entries(current).filter(
             ([, j]) => j.status === "queued" || j.status === "running"
           );
           if (pending.length === 0) return;
@@ -108,13 +108,14 @@
             setJobs(prev => ({ ...prev, ...updates }));
           }
         }, 2000);
-        return () => clearInterval(pollingRef.current);
-      }, [jobs]);
+        return () => clearInterval(id);
+      }, []);  // run once on mount
 
       const sendMessage = useCallback(async () => {
         const text = message.trim();
         if (!text) return;
         setSending(true);
+        setError(null);
         try {
           const res = await fetch(`${API}/chat`, {
             method: "POST",
@@ -130,7 +131,7 @@
           setJobs(prev => ({ [job.taskId]: { ...job, prompt: text, mode }, ...prev }));
           setMessage("");
         } catch (err) {
-          alert("Error: " + err.message);
+          setError(err.message);
         } finally {
           setSending(false);
         }
@@ -145,40 +146,49 @@
 
       const jobList = Object.values(jobs).sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
 
-      return (
-        <div>
-          <h1>Sail API Test</h1>
-
-          <div className="form-row">
-            <div style={{flex: 3}}>
-              <label>Message (Enter to send, Shift+Enter for newline)</label>
-              <textarea
-                value={message}
-                onChange={e => setMessage(e.target.value)}
-                onKeyDown={handleKeyDown}
-                placeholder="Ask Sail something..."
-              />
-            </div>
-          </div>
-
-          <div className="form-row">
-            <div><label>User ID</label><input value={userId} onChange={e => setUserId(e.target.value)} placeholder="anonymous" /></div>
-            <div><label>Conversation ID</label><input value={conversationId} onChange={e => setConversationId(e.target.value)} placeholder="auto-generated" /></div>
-            <div style={{flex: "0 0 120px"}}><label>Mode</label><select value={mode} onChange={e => setMode(e.target.value)}><option value="chat">chat</option><option value="plan">plan</option><option value="build">build</option></select></div>
-          </div>
-
-          <button onClick={sendMessage} disabled={sending || !message.trim()}>
-            {sending ? "Sending..." : "Send"}
-          </button>
-
-          <Stats jobs={jobList} />
-
-          {jobList.map(job => <JobCard key={job.taskId} job={job} />)}
-        </div>
+      return React.createElement("div", null,
+        React.createElement("h1", null, "Sail API — React"),
+        error ? React.createElement("div", { className: "error-banner" }, error) : null,
+        React.createElement("div", { className: "row" },
+          React.createElement("div", { style: { flex: 3 } },
+            React.createElement("label", null, "Message"),
+            React.createElement("textarea", {
+              value: message,
+              onChange: e => setMessage(e.target.value),
+              onKeyDown: handleKeyDown,
+              placeholder: "Ask Sail something..."
+            })
+          )
+        ),
+        React.createElement("div", { className: "row" },
+          React.createElement("div", null,
+            React.createElement("label", null, "User ID"),
+            React.createElement("input", { value: userId, onChange: e => setUserId(e.target.value), placeholder: "anonymous" })
+          ),
+          React.createElement("div", null,
+            React.createElement("label", null, "Conversation ID"),
+            React.createElement("input", { value: conversationId, onChange: e => setConversationId(e.target.value), placeholder: "auto-generated" })
+          ),
+          React.createElement("div", { style: { flex: "0 0 120px" } },
+            React.createElement("label", null, "Mode"),
+            React.createElement("select", { value: mode, onChange: e => setMode(e.target.value) },
+              React.createElement("option", { value: "chat" }, "chat"),
+              React.createElement("option", { value: "plan" }, "plan"),
+              React.createElement("option", { value: "build" }, "build")
+            )
+          )
+        ),
+        React.createElement("button", { onClick: sendMessage, disabled: sending || !message.trim() },
+          sending ? "Sending..." : "Send"
+        ),
+        React.createElement(Stats, { jobs: jobList }),
+        ...jobList.map(job => React.createElement(JobCard, { key: job.taskId, job }))
       );
     }
 
-    createRoot(document.getElementById("root")).render(<App />);
+    const root = document.getElementById("root");
+    root.textContent = "";  // clear "Loading React..."
+    createRoot(root).render(React.createElement(App));
   </script>
 </body>
 </html>
