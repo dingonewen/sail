@@ -1,7 +1,7 @@
 import { appendFileSync, existsSync, mkdirSync } from "node:fs";
 import { dirname } from "node:path";
 import { homedir } from "node:os";
-import { randomBytes } from "node:crypto";
+import { randomBytes, createHash } from "node:crypto";
 
 type ObsMode = "off" | "console" | "file" | "both";
 
@@ -92,8 +92,9 @@ function getTraceId(): string {
 
 /** Set the trace ID from an external source (e.g. Mastra threadId). */
 export function setTraceId(id: string): void {
-  // OTLP requires 32 hex chars; strip hyphens from UUIDs
-  _traceId = id.replace(/-/g, "").slice(0, 32).padEnd(32, "0");
+  // OTLP requires 32 hex chars. Hash the input so any string (UUID,
+  // "demo-1", "thread-123") produces valid hex.
+  _traceId = createHash("sha256").update(id).digest("hex").slice(0, 32);
 }
 
 let _currentModelTurnSpanId: string | null = null;

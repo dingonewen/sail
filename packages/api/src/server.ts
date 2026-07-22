@@ -25,6 +25,9 @@ export async function buildServer() {
   // OTLP (Logfire) is off by default. Set SAIL_OBSERVABILITY=file or =console to enable.
   if (process.env.SAIL_OBSERVABILITY && process.env.SAIL_OBSERVABILITY !== "off") {
     applyOtlp();
+    app.log.info(`Logfire enabled (endpoint: ${process.env.SAIL_OTLP_ENDPOINT || "?"})`);
+  } else {
+    app.log.info("Logfire disabled — set SAIL_OBSERVABILITY=file to enable");
   }
 
   // Allow all origins during development — tighten for production.
