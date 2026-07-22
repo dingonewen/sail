@@ -1,7 +1,7 @@
 import { SailController } from "@sail/core";
 import type { JobQueue } from "./queue.js";
 
-const POLL_INTERVAL_MS = 1000;
+const POLL_INTERVAL_MS = 100;
 
 const MAX_STEPS: Record<string, number> = {
   chat: 10,
@@ -15,6 +15,9 @@ const MAX_STEPS: Record<string, number> = {
  * Polls the queue every second. When a job is available, processes it
  * sequentially — job 2 never starts before job 1 completes. This is
  * enforced by the queue's internal `processing` flag.
+ *
+ * Uses stream() (not generate()) so observability records individual
+ * tool call spans in onStepFinish, not just the final model_turn.
  */
 export function startWorker(queue: JobQueue): void {
   const controller = new SailController();
@@ -27,19 +30,21 @@ export function startWorker(queue: JobQueue): void {
 
     if (job) {
       try {
-        // Each job gets its own controller instance for mode isolation,
-        // but reuses the underlying Mastra Agent singleton.
         controller.switchMode(job.mode);
 
-        const result = await controller.generate(job.prompt, {
+        let accumulated = "";
+        await controller.stream(job.prompt, {
           resource: job.userId,
           thread: job.conversationId,
           maxSteps: MAX_STEPS[job.mode] ?? 10,
+          onTextChunk: (chunk: string) => {
+            accumulated += chunk;
+          },
         });
 
         queue.updateJob(job.taskId, {
           status: "done",
-          result: result.text || "(no output)",
+          result: accumulated || "(no output)",
         });
       } catch (err) {
         queue.updateJob(job.taskId, {
