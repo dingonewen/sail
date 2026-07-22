@@ -19,6 +19,7 @@ export {
   getProvider,
   applyProvider,
   autoApplyProvider,
+  applyOtlp,
   PROVIDERS,
 } from "./config.js";
 export type { SailConfig, ProviderConfig, ProviderInfo } from "./config.js";

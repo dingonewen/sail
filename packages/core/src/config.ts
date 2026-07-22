@@ -230,6 +230,24 @@ export function applyProvider(
 }
 
 /**
+ * Apply OTLP observability config from ~/.sail/config.json to process.env.
+ * Called by both CLI and API server so Logfire (or any OTLP backend) works
+ * without manual env vars.
+ */
+export function applyOtlp(): boolean {
+  const config = loadConfig();
+  if (!config.otlp?.endpoint) return false;
+
+  process.env.SAIL_OTLP_ENDPOINT = config.otlp.endpoint;
+
+  if (config.otlp.apiKey) {
+    process.env.SAIL_OTLP_HEADERS = `Authorization=Bearer ${config.otlp.apiKey}`;
+  }
+
+  return true;
+}
+
+/**
  * Auto-apply the default provider on startup.
  * Returns the provider info if successful, or undefined if nothing is configured.
  */

@@ -3,7 +3,7 @@ import cors from "@fastify/cors";
 import fastifyStatic from "@fastify/static";
 import { resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
-import { autoApplyProvider, loadConfig } from "@sail/core";
+import { autoApplyProvider, applyOtlp, loadConfig } from "@sail/core";
 import { JobQueue } from "./queue.js";
 import { startWorker } from "./worker.js";
 import { chatRoutes } from "./routes/chat.js";
@@ -21,6 +21,11 @@ export async function buildServer() {
   const config = loadConfig();
 
   const app = Fastify({ logger: true });
+
+  // OTLP (Logfire) is off by default. Set SAIL_OBSERVABILITY=file or =console to enable.
+  if (process.env.SAIL_OBSERVABILITY && process.env.SAIL_OBSERVABILITY !== "off") {
+    applyOtlp();
+  }
 
   // Allow all origins during development — tighten for production.
   await app.register(cors, { origin: true });
