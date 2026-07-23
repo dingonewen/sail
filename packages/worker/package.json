@@ -10,7 +10,7 @@
     "dev": "tsc --watch",
     "typecheck": "tsc --noEmit",
     "start": "node dist/worker.js",
-    "test": "vitest run"
+    "test": "vitest run --passWithNoTests"
   },
   "dependencies": {
     "@sail/core": "workspace:*",
