@@ -153,6 +153,36 @@ Save multiple providers, switch anytime:
 /login             # list saved providers
 ```
 
+### HTTP API
+
+Sail can also run as an HTTP server with an async job queue — submit messages, get back a task ID, and poll for results. Same agent, same config, different interface.
+
+```bash
+node packages/api/dist/server.js
+# Provider auto-loaded from ~/.sail/config.json — no env vars needed
+
+curl -X POST http://localhost:3000/chat \
+  -H "Content-Type: application/json" \
+  -d '{"message": "explain the auth module"}'
+# → {"taskId":"abc-123...","status":"queued"}
+
+curl http://localhost:3000/chat/abc-123
+# → {"taskId":"abc-123...","status":"done","result":"..."}
+```
+
+| Route | Description |
+|---|---|
+| `POST /chat` | Submit a message, get a taskId back immediately |
+| `GET /chat/:taskId` | Poll for job status and result |
+| `GET /health` | Health check with provider info |
+| `GET /test/test-vanilla.html` | Built-in vanilla JS test page |
+| `GET /test/test-react.html` | Built-in React test page |
+
+- **FIFO job queue** — multiple requests are processed sequentially; second job never interrupts the first
+- **Multi-user** — memory is isolated per `userId` (WorkingMemory + SemanticRecall), conversation history per `conversationId`
+- **Observability** — enable Logfire with `SAIL_OBSERVABILITY=file node packages/api/dist/server.js`
+- **Zero config** — reuses the same `~/.sail/config.json` provider setup as the CLI
+
 ### Sessions
 
 Tree-structured — branch from any point:
