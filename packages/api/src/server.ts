@@ -7,7 +7,6 @@ import { resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { autoApplyProvider, applyOtlp, loadConfig } from "@sail/core";
 import { JobQueue } from "./queue.js";
-import { startWorker } from "./worker.js";
 import { chatRoutes } from "./routes/chat.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -49,12 +48,11 @@ export async function buildServer() {
     routePrefix: "/docs",
   });
 
-  // ── Queue & worker ──
+  // ── Queue (BullMQ producer) ──
   const queue = new JobQueue();
 
-  // Start the worker loop. It polls the queue every second and processes
-  // jobs sequentially — second job never interrupts the first.
-  startWorker(queue);
+  // Worker is a separate process (packages/worker/). The API just enqueues
+  // jobs into Redis; the worker dequeues and processes them independently.
 
   // ── Routes ──
   // Inject queue into routes so they're testable with a mock.
@@ -95,7 +93,7 @@ export async function buildServer() {
   // ── Health check ──
   app.get("/health", async () => ({
     status: "ok",
-    pendingJobs: queue.pendingCount,
+    pendingJobs: await queue.pendingCount(),
     provider: provider
       ? { id: provider.id, model: process.env.SAIL_MODEL }
       : null,
@@ -123,9 +121,10 @@ try {
   }
 
   app.log.info(`Sail API listening on http://${HOST}:${PORT}`);
-  app.log.info(`POST /chat — submit a message`);
-  app.log.info(`GET  /chat/:taskId — poll for result`);
-  app.log.info(`GET  /health — health check`);
+  app.log.info(`POST /chat            — submit a message (mode: chat, plan, or build)`);
+  app.log.info(`GET  /chat/:taskId    — poll for result`);
+  app.log.info(`GET  /docs             — Swagger UI`);
+  app.log.info(`GET  /test/test-*.html — vanilla JS & React test pages`);
 } catch (err) {
   app.log.error(err);
   process.exit(1);

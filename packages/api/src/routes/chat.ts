@@ -71,7 +71,7 @@ export function chatRoutes(queue: JobQueue): FastifyPluginAsync {
         mode,
       };
 
-      const job = queue.enqueue(input);
+      const job = await queue.enqueue(input);
 
       reply.code(201).send({
         taskId: job.taskId,
@@ -94,7 +94,7 @@ export function chatRoutes(queue: JobQueue): FastifyPluginAsync {
       },
     }, async (request, reply) => {
       const { taskId } = request.params as { taskId: string };
-      const job = queue.getJob(taskId);
+      const job = await queue.getJob(taskId);
 
       if (!job) {
         reply.code(404).send({ error: `Job not found: ${taskId}` });
@@ -124,15 +124,15 @@ export function chatRoutes(queue: JobQueue): FastifyPluginAsync {
         },
       },
     }, async (_request, reply) => {
-      const jobs = queue.listJobs().map((j) => ({
+      const jobs = (await queue.listJobs()).map((j) => ({
         taskId: j.taskId,
         status: j.status,
         userId: j.userId,
         mode: j.mode,
         prompt: j.prompt.slice(0, 80),
-        createdAt: new Date(j.createdAt).toISOString(),
+        createdAt: j.createdAt ? new Date(j.createdAt).toISOString() : "",
       }));
-      reply.send({ jobs, pendingCount: queue.pendingCount });
+      reply.send({ jobs, pendingCount: await queue.pendingCount() });
     });
   };
 }

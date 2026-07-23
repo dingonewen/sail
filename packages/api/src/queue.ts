@@ -1,18 +1,13 @@
+import { Queue, type Job as BullJob } from "bullmq";
 import { randomUUID } from "node:crypto";
 
 export type JobStatus = "queued" | "running" | "done" | "failed";
 
-export interface Job {
-  taskId: string;
+export interface JobData {
+  prompt: string;
   userId: string;
   conversationId: string;
-  prompt: string;
   mode: "chat" | "plan" | "build";
-  status: JobStatus;
-  result?: string;
-  error?: string;
-  createdAt: number;
-  updatedAt: number;
 }
 
 export interface CreateJobInput {
@@ -22,76 +17,111 @@ export interface CreateJobInput {
   mode?: "chat" | "plan" | "build";
 }
 
+const REDIS_HOST = process.env.REDIS_HOST || "localhost";
+const REDIS_PORT = parseInt(process.env.REDIS_PORT || "6379", 10);
+
+let _queue: Queue<JobData> | null = null;
+
+function getQueue(): Queue<JobData> {
+  if (!_queue) {
+    _queue = new Queue<JobData>("sail-chat", {
+      connection: { host: REDIS_HOST, port: REDIS_PORT },
+    });
+  }
+  return _queue;
+}
+
+function mapStatus(bullStatus: string | null): JobStatus {
+  switch (bullStatus) {
+    case "waiting":
+    case "delayed":
+    case "waiting-children":
+      return "queued";
+    case "active":
+      return "running";
+    case "completed":
+      return "done";
+    case "failed":
+      return "failed";
+    default:
+      return "queued";
+  }
+}
+
+function fromBullJob(j: BullJob<JobData>) {
+  return {
+    taskId: j.id!,
+    userId: j.data.userId,
+    conversationId: j.data.conversationId,
+    prompt: j.data.prompt,
+    mode: j.data.mode,
+    status: mapStatus(j.finishedOn ? "completed" : j.failedReason ? "failed" : "queued"),
+    result: j.returnvalue?.result,
+    error: j.failedReason,
+    createdAt: j.timestamp,
+    updatedAt: j.processedOn || j.timestamp,
+  };
+}
+
 /**
- * In-memory FIFO job queue.
- *
- * Interface is intentionally aligned with BullMQ so swapping to Redis
- * later only requires changing the implementation, not the callers.
+ * BullMQ-backed job queue. Same interface as the old in-memory queue
+ * so routes don't need to change.
  */
 export class JobQueue {
-  private jobs = new Map<string, Job>();
-  private queue: string[] = [];
-  private processing = false;
-
-  /** Number of jobs currently queued (not yet running or done). */
-  get pendingCount(): number {
-    return this.queue.length;
-  }
-
-  /** Create a job and push it onto the queue. */
-  enqueue(input: CreateJobInput): Job {
-    const job: Job = {
-      taskId: randomUUID(),
+  /** Create a job and push it onto the Redis-backed queue. */
+  async enqueue(input: CreateJobInput) {
+    const q = getQueue();
+    const taskId = randomUUID();
+    const data: JobData = {
+      prompt: input.prompt,
       userId: input.userId || "anonymous",
       conversationId: input.conversationId || randomUUID(),
-      prompt: input.prompt,
       mode: input.mode || "chat",
-      status: "queued",
-      createdAt: Date.now(),
-      updatedAt: Date.now(),
     };
 
-    this.jobs.set(job.taskId, job);
-    this.queue.push(job.taskId);
-    return job;
+    await q.add("chat", data, { jobId: taskId });
+
+    return {
+      taskId,
+      status: "queued" as JobStatus,
+    };
   }
 
-  /** Get a job by taskId. */
-  getJob(taskId: string): Job | undefined {
-    return this.jobs.get(taskId);
-  }
-
-  /**
-   * Dequeue the next pending job and mark it as running.
-   * Returns undefined if the queue is empty or already processing.
-   */
-  dequeue(): Job | undefined {
-    if (this.processing) return undefined;
-
-    const taskId = this.queue.shift();
-    if (!taskId) return undefined;
-
-    const job = this.jobs.get(taskId);
+  /** Get a job by taskId from Redis. */
+  async getJob(taskId: string) {
+    const q = getQueue();
+    const job = await q.getJob(taskId);
     if (!job) return undefined;
 
-    this.processing = true;
-    job.status = "running";
-    job.updatedAt = Date.now();
-    return job;
+    // Determine actual status
+    const state = await job.getState();
+    return fromBullJob(job);
   }
 
-  /** Update job fields after processing. */
-  updateJob(taskId: string, partial: Partial<Pick<Job, "status" | "result" | "error">>): void {
-    const job = this.jobs.get(taskId);
-    if (!job) return;
+  /** List recent jobs (newest first). */
+  async listJobs() {
+    const q = getQueue();
 
-    Object.assign(job, partial);
-    job.updatedAt = Date.now();
-    this.processing = false;
+    // Get jobs from all states
+    const allStates: ("completed" | "failed" | "active" | "delayed" | "waiting" | "waiting-children")[] =
+      ["completed", "failed", "active", "delayed", "waiting", "waiting-children"];
+
+    const jobs = await q.getJobs(allStates, 0, 50);
+    return jobs.map(fromBullJob).sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
   }
 
-  /** List all jobs (newest first) — for debugging. */
-  listJobs(): Job[] {
-    return [...this.jobs.values()].sort((a, b) => b.createdAt - a.createdAt);
+  /** Number of waiting jobs. */
+  async pendingCount() {
+    const q = getQueue();
+    const waiting = await q.getWaitingCount();
+    return waiting;
+  }
+
+  /** Close the Redis connection. */
+  async close() {
+    if (_queue) {
+      await _queue.close();
+      _queue = null;
+    }
   }
 }
