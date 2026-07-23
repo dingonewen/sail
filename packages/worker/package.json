@@ -1,0 +1,25 @@
+{
+  "name": "@sail/worker",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Sail worker — BullMQ consumer running SailController",
+  "type": "module",
+  "main": "./dist/worker.js",
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "typecheck": "tsc --noEmit",
+    "start": "node dist/worker.js",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@sail/core": "workspace:*",
+    "bullmq": "latest",
+    "ioredis": "latest"
+  },
+  "devDependencies": {
+    "@types/node": "^26.1.1",
+    "typescript": "latest",
+    "vitest": "latest"
+  }
+}
