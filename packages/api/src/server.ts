@@ -1,6 +1,8 @@
 import Fastify from "fastify";
 import cors from "@fastify/cors";
 import fastifyStatic from "@fastify/static";
+import fastifySwagger from "@fastify/swagger";
+import fastifySwaggerUi from "@fastify/swagger-ui";
 import { resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { autoApplyProvider, applyOtlp, loadConfig } from "@sail/core";
@@ -32,6 +34,20 @@ export async function buildServer() {
 
   // Allow all origins during development — tighten for production.
   await app.register(cors, { origin: true });
+
+  // ── Swagger / OpenAPI — http://localhost:3000/docs ──
+  await app.register(fastifySwagger, {
+    openapi: {
+      info: {
+        title: "Sail API",
+        description: "Async job queue wrapping the Sail coding agent",
+        version: "0.1.0",
+      },
+    },
+  });
+  await app.register(fastifySwaggerUi, {
+    routePrefix: "/docs",
+  });
 
   // ── Queue & worker ──
   const queue = new JobQueue();
@@ -70,6 +86,7 @@ export async function buildServer() {
     <li><code>GET /chat/:taskId</code> — poll for result</li>
     <li><code>GET /health</code> — health check</li>
   </ul>
+  <p><a href="/docs">→ Swagger UI</a></p>
   <p><a href="/test/test-vanilla.html">→ Vanilla JS test page</a></p>
   <p><a href="/test/test-react.html">→ React test page</a></p>
 </body></html>`);

@@ -1,17 +1,45 @@
 import type { FastifyInstance, FastifyPluginAsync } from "fastify";
 import type { JobQueue, CreateJobInput } from "../queue.js";
 
-/** JSON schema for POST /chat request body validation */
-const postChatSchema = {
+/** JSON schema for POST /chat request body */
+const postChatBody = {
   type: "object",
   required: ["message"],
   properties: {
-    message: { type: "string", minLength: 1 },
-    userId: { type: "string" },
-    conversationId: { type: "string" },
-    mode: { type: "string", enum: ["chat", "plan", "build"] },
+    message: { type: "string", minLength: 1, description: "The message to send to the agent" },
+    userId: { type: "string", description: "User identifier for memory isolation" },
+    conversationId: { type: "string", description: "Conversation thread ID for multi-turn conversations" },
+    mode: { type: "string", enum: ["chat", "plan", "build"], description: "Agent mode" },
   },
-};
+} as const;
+
+const postChatResponse = {
+  201: {
+    type: "object",
+    properties: {
+      taskId: { type: "string" },
+      status: { type: "string" },
+    },
+  },
+} as const;
+
+const getChatResponse = {
+  200: {
+    type: "object",
+    properties: {
+      taskId: { type: "string" },
+      status: { type: "string", enum: ["queued", "running", "done", "failed"] },
+      result: { type: "string" },
+      error: { type: "string" },
+    },
+  },
+  404: {
+    type: "object",
+    properties: {
+      error: { type: "string" },
+    },
+  },
+} as const;
 
 /**
  * Register chat routes on a Fastify instance.
@@ -21,8 +49,14 @@ const postChatSchema = {
  */
 export function chatRoutes(queue: JobQueue): FastifyPluginAsync {
   return async (app: FastifyInstance) => {
-    /** POST /chat — submit a message, get back a taskId immediately */
-    app.post("/chat", { schema: { body: postChatSchema } }, async (request, reply) => {
+    app.post("/chat", {
+      schema: {
+        tags: ["chat"],
+        description: "Submit a message to the agent. Returns a taskId immediately — the agent processes the message asynchronously.",
+        body: postChatBody,
+        response: postChatResponse,
+      },
+    }, async (request, reply) => {
       const { message, userId, conversationId, mode } = request.body as {
         message: string;
         userId?: string;
@@ -45,8 +79,20 @@ export function chatRoutes(queue: JobQueue): FastifyPluginAsync {
       });
     });
 
-    /** GET /chat/:taskId — poll for job status and result */
-    app.get("/chat/:taskId", async (request, reply) => {
+    app.get("/chat/:taskId", {
+      schema: {
+        tags: ["chat"],
+        description: "Poll for a job's status and result. Jobs are processed sequentially — a second job never interrupts the first.",
+        params: {
+          type: "object",
+          required: ["taskId"],
+          properties: {
+            taskId: { type: "string", description: "The task ID returned by POST /chat" },
+          },
+        },
+        response: getChatResponse,
+      },
+    }, async (request, reply) => {
       const { taskId } = request.params as { taskId: string };
       const job = queue.getJob(taskId);
 
@@ -63,8 +109,21 @@ export function chatRoutes(queue: JobQueue): FastifyPluginAsync {
       });
     });
 
-    /** GET /chat — list all jobs (useful for debugging) */
-    app.get("/chat", async (_request, reply) => {
+    app.get("/chat", {
+      schema: {
+        tags: ["chat"],
+        description: "List all jobs (useful for debugging).",
+        response: {
+          200: {
+            type: "object",
+            properties: {
+              jobs: { type: "array" },
+              pendingCount: { type: "number" },
+            },
+          },
+        },
+      },
+    }, async (_request, reply) => {
       const jobs = queue.listJobs().map((j) => ({
         taskId: j.taskId,
         status: j.status,
