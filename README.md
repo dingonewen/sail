@@ -155,15 +155,44 @@ Save multiple providers, switch anytime:
 
 ### HTTP API
 
-Sail can also run as an HTTP server with an async job queue — submit messages, get back a task ID, and poll for results. Same agent, same config, different interface.
+Sail can run as a distributed HTTP API with a Redis-backed job queue. The API server accepts messages and enqueues them; a separate Worker process dequeues and executes them sequentially.
+
+```
+                    ┌─ Redis (BullMQ) ─┐
+                    │  job data, state  │
+                    └──▲────────────┬──┘
+                       │            │
+              enqueue  │            │ dequeue
+                       │            │
+  ┌──────────┐    ┌────┴─────┐  ┌──┴──────────┐
+  │  Client  │───→│  API     │  │  Worker     │
+  │ (curl /  │    │ (Fastify)│  │ (SailController)
+  │  browser)│←───│  :3000   │  │  sequential │
+  └──────────┘    └──────────┘  └─────────────┘
+   POST /chat     enqueue job   concurrency: 1
+   GET /chat/:id  poll status
+```
+
+#### Docker Compose (recommended)
 
 ```bash
-node packages/api/dist/server.js
-# Provider auto-loaded from ~/.sail/config.json — no env vars needed
+docker-compose up -d    # Redis + API + Worker, one command
+```
 
+#### Manual (for development)
+
+```bash
+# Start Redis, then:
+node packages/worker/dist/worker.js &    # worker process
+node packages/api/dist/server.js         # api process
+```
+
+#### Usage
+
+```bash
 curl -X POST http://localhost:3000/chat \
   -H "Content-Type: application/json" \
-  -d '{"message": "explain the auth module"}'
+  -d '{"message": "explain the auth module", "userId": "alice"}'
 # → {"taskId":"abc-123...","status":"queued"}
 
 curl http://localhost:3000/chat/abc-123
@@ -172,16 +201,17 @@ curl http://localhost:3000/chat/abc-123
 
 | Route | Description |
 |---|---|
-| `POST /chat` | Submit a message, get a taskId back immediately |
-| `GET /chat/:taskId` | Poll for job status and result |
-| `GET /health` | Health check with provider info |
+| `POST /chat` | Submit a message (body: `message`, optional `userId`, `conversationId`, `mode`) |
+| `GET /chat/:taskId` | Poll for job status (`queued` → `running` → `done` / `failed`) |
+| `GET /docs` | Swagger UI |
 | `GET /test/test-vanilla.html` | Built-in vanilla JS test page |
 | `GET /test/test-react.html` | Built-in React test page |
 
-- **FIFO job queue** — multiple requests are processed sequentially; second job never interrupts the first
-- **Multi-user** — memory is isolated per `userId` (WorkingMemory + SemanticRecall), conversation history per `conversationId`
-- **Observability** — enable Logfire with `SAIL_OBSERVABILITY=file node packages/api/dist/server.js`
-- **Zero config** — reuses the same `~/.sail/config.json` provider setup as the CLI
+- **BullMQ + Redis** — job queue persists across restarts; API and Worker run as separate processes
+- **Sequential processing** — `concurrency: 1` ensures second job never interrupts the first
+- **Multi-user** — memory isolated per `userId`, conversation history per `conversationId`
+- **Observability** — opt-in with `SAIL_OBSERVABILITY=file`; full OTLP traces in Logfire
+- **Zero config** — reuses `~/.sail/config.json` provider setup from the CLI
 
 ### Sessions
 
