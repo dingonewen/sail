@@ -30,7 +30,7 @@ importers:
         specifier: workspace:*
         version: link:../core
       bullmq:
-        specifier: latest
+        specifier: 5.81.0
         version: 5.81.0
       fastify:
         specifier: ^5.3.2
@@ -133,7 +133,7 @@ importers:
         specifier: workspace:*
         version: link:../core
       bullmq:
-        specifier: latest
+        specifier: 5.81.0
         version: 5.81.0
       ioredis:
         specifier: latest

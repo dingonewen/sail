@@ -19,6 +19,6 @@ COPY packages/core/src packages/core/src/
 COPY packages/worker/src packages/worker/src/
 
 # Build
-RUN pnpm build --filter @sail/worker --filter @sail/core
+RUN pnpm --filter @sail/worker --filter @sail/core build
 
 CMD ["node", "packages/worker/dist/worker.js"]

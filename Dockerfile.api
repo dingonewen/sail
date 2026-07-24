@@ -20,7 +20,7 @@ COPY packages/api/src packages/api/src/
 COPY packages/api/test packages/api/test/
 
 # Build
-RUN pnpm build --filter @sail/api --filter @sail/core
+RUN pnpm --filter @sail/api --filter @sail/core build
 
 EXPOSE 3000
 CMD ["node", "packages/api/dist/server.js"]

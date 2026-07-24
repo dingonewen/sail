@@ -26,7 +26,7 @@
     "@fastify/static": "^8.2.0",
     "@fastify/swagger": "latest",
     "@fastify/swagger-ui": "latest",
-    "bullmq": "latest",
+    "bullmq": "5.81.0",
     "ioredis": "latest"
   },
   "devDependencies": {

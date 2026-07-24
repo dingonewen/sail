@@ -14,7 +14,7 @@
   },
   "dependencies": {
     "@sail/core": "workspace:*",
-    "bullmq": "latest",
+    "bullmq": "5.81.0",
     "ioredis": "latest"
   },
   "devDependencies": {
