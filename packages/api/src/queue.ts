@@ -79,7 +79,10 @@ export class JobQueue {
       mode: input.mode || "chat",
     };
 
-    await q.add("chat", data, { jobId: taskId });
+    await q.add("chat", data, {
+      jobId: taskId,
+      ...({ group: { id: data.conversationId } } as any),
+    });
 
     return {
       taskId,

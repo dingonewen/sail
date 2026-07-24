@@ -60,6 +60,7 @@ const worker = new Worker<JobData>(
   {
     connection: { host: REDIS_HOST, port: REDIS_PORT },
     concurrency: 1,
+    ...({ group: { concurrency: 1 } } as any),
   }
 );
 
