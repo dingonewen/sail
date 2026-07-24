@@ -56,7 +56,7 @@ export const PROVIDERS: ProviderInfo[] = [
     id: "deepseek",
     name: "DeepSeek",
     envVar: "DEEPSEEK_API_KEY",
-    defaultModel: "deepseek/deepseek-chat",
+    defaultModel: "deepseek/deepseek-v4-pro",
   },
 ];
 
