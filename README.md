@@ -155,28 +155,39 @@ Save multiple providers, switch anytime:
 
 ### HTTP API
 
-Sail can run as a distributed HTTP API with a Redis-backed job queue. The API server accepts messages and enqueues them; a separate Worker process dequeues and executes them sequentially.
+Sail can run as a distributed HTTP API with a Redis-backed job queue. The API server accepts messages and enqueues them into Redis; a separate Worker process dequeues and executes them with `SailController`. Jobs from the same `conversationId` are never processed concurrently, even if multiple workers are deployed.
 
 ```
-                    ┌─ Redis (BullMQ) ─┐
-                    │  job data, state  │
-                    └──▲────────────┬──┘
-                       │            │
-              enqueue  │            │ dequeue
-                       │            │
-  ┌──────────┐    ┌────┴─────┐  ┌──┴──────────┐
-  │  Client  │───→│  API     │  │  Worker     │
-  │ (curl /  │    │ (Fastify)│  │ (SailController)
-  │  browser)│←───│  :3000   │  │  sequential │
-  └──────────┘    └──────────┘  └─────────────┘
-   POST /chat     enqueue job   concurrency: 1
-   GET /chat/:id  poll status
+                    ┌── Redis (BullMQ) ──┐
+                    │  job data, state    │
+                    └───▲────────────┬────┘
+                        │            │
+               enqueue  │            │ dequeue
+                        │            │
+  ┌──────────┐     ┌────┴─────┐  ┌──┴──────────┐
+  │  Client  │────→│  API     │  │  Worker(s)  │
+  │ (curl /  │     │ (Fastify)│  │ (SailController)
+  │  browser)│←────│  :3000   │  │ concurrency:1│
+  └──────────┘     └──────────┘  └──────┬───────┘
+   POST /chat      enqueue job         │
+   GET /chat/:id   poll status   ┌─────┴──────┐
+                                 │ LibSQL     │
+                                 │ (shared DB)│
+                                 └────────────┘
 ```
+
+All workers share the same LibSQL database via a Docker volume — any worker picking up job N+1 sees the complete conversation history and working memory from job N, regardless of which worker handled job N.
 
 #### Docker Compose (recommended)
 
 ```bash
-docker-compose up -d    # Redis + API + Worker, one command
+docker compose up -d    # Redis + API + Worker, one command
+```
+
+To scale workers (different sessions can process in parallel while same-session jobs stay sequential):
+
+```bash
+docker compose up -d --scale worker=3
 ```
 
 #### Manual (for development)
@@ -209,9 +220,27 @@ curl http://localhost:3000/chat/abc-123
 
 - **BullMQ + Redis** — job queue persists across restarts; API and Worker run as separate processes
 - **Sequential processing** — `concurrency: 1` ensures second job never interrupts the first
+- **Multi-worker ready** — BullMQ group concurrency keeps same-session jobs sequential even with multiple workers
 - **Multi-user** — memory isolated per `userId`, conversation history per `conversationId`
-- **Observability** — opt-in with `SAIL_OBSERVABILITY=file`; full OTLP traces in Logfire
+- **Observability** — OTLP traces in Logfire when `SAIL_OBSERVABILITY=file`; `~/.sail/config.json` must include an `otlp` block
 - **Zero config** — reuses `~/.sail/config.json` provider setup from the CLI
+
+#### Prerequisites
+
+A `~/.sail/config.json` with a provider and optionally OTLP:
+
+```json
+{
+  "defaultProvider": "deepseek",
+  "providers": {
+    "deepseek": { "model": "deepseek/deepseek-v4-pro", "apiKey": "sk-..." }
+  },
+  "otlp": {
+    "apiKey": "pylf_v2_us_...",
+    "endpoint": "https://logfire-api.pydantic.dev/v1/traces"
+  }
+}
+```
 
 ### Sessions
 
