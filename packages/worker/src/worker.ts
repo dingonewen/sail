@@ -1,5 +1,5 @@
 import { Worker } from "bullmq";
-import { SailController, autoApplyProvider } from "@sail/core";
+import { SailController, autoApplyProvider, applyOtlp } from "@sail/core";
 
 const REDIS_HOST = process.env.REDIS_HOST || "localhost";
 const REDIS_PORT = parseInt(process.env.REDIS_PORT || "6379", 10);
@@ -23,6 +23,12 @@ if (provider) {
   console.log(`Worker provider: ${provider.name} (${process.env.SAIL_MODEL})`);
 } else {
   console.warn("Worker: no provider configured. Set SAIL_MODEL and API key env vars.");
+}
+
+// ── OTLP — enable Logfire if SAIL_OBSERVABILITY is set ──
+if (process.env.SAIL_OBSERVABILITY && process.env.SAIL_OBSERVABILITY !== "off") {
+  applyOtlp();
+  console.log("Worker: Logfire enabled");
 }
 
 // ── BullMQ Worker ──
