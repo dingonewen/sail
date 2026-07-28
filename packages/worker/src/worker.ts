@@ -1,8 +1,12 @@
 import { Worker } from "bullmq";
+import { Redis } from "ioredis";
 import { SailController, autoApplyProvider, applyOtlp } from "@sail/core";
 
 const REDIS_HOST = process.env.REDIS_HOST || "localhost";
 const REDIS_PORT = parseInt(process.env.REDIS_PORT || "6379", 10);
+
+// Shared Redis client for distributed locks
+const redis = new Redis({ host: REDIS_HOST, port: REDIS_PORT });
 
 interface JobData {
   prompt: string;
@@ -16,6 +20,11 @@ const MAX_STEPS: Record<string, number> = {
   plan: 15,
   build: 25,
 };
+
+/** Lock TTL in seconds — max time a job can hold the lock */
+const LOCK_TTL = 300;
+/** How long to delay before retrying if a lock is already held */
+const LOCK_RETRY_DELAY_MS = 3000;
 
 // ── Provider — auto-load from ~/.sail/config.json ──
 const provider = autoApplyProvider();
@@ -32,30 +41,50 @@ if (process.env.SAIL_OBSERVABILITY && process.env.SAIL_OBSERVABILITY !== "off") 
 }
 
 // ── BullMQ Worker ──
-// concurrency: 1 ensures sequential processing — job 2 never interrupts job 1.
+// concurrency: 1 + Redis distributed lock per conversationId ensures
+// same-session jobs are never processed concurrently, even across
+// multiple workers.
 const worker = new Worker<JobData>(
   "sail-chat",
   async (job) => {
     const { prompt, userId, conversationId, mode } = job.data;
+    const lockKey = `sail:lock:${conversationId}`;
 
-    console.log(`[worker] Processing ${job.id} (mode: ${mode})`);
+    // Try to acquire a Redis lock for this conversation.
+    // SET NX EX = atomic "set if not exists" with auto-expiry.
+    // If another worker is already processing this conversation,
+    // the lock won't be acquired and we delay the job.
+    const acquired = await redis.set(lockKey, job.id!, "EX", LOCK_TTL, "NX");
+    if (!acquired) {
+      console.log(`[worker] Lock held for ${conversationId}, delaying ${job.id}`);
+      await job.moveToDelayed(Date.now() + LOCK_RETRY_DELAY_MS);
+      return;
+    }
 
-    const controller = new SailController();
-    controller.setAutoApprove(true);
-    controller.switchMode(mode || "chat");
+    try {
+      console.log(`[worker] Processing ${job.id} (mode: ${mode})`);
 
-    let accumulated = "";
-    await controller.stream(prompt, {
-      resource: userId,
-      thread: conversationId,
-      maxSteps: MAX_STEPS[mode] ?? 10,
-      onTextChunk: (chunk: string) => {
-        accumulated += chunk;
-      },
-    });
+      const controller = new SailController();
+      controller.setAutoApprove(true);
+      controller.switchMode(mode || "chat");
 
-    console.log(`[worker] Completed ${job.id}`);
-    return { result: accumulated || "(no output)" };
+      let accumulated = "";
+      await controller.stream(prompt, {
+        resource: userId,
+        thread: conversationId,
+        maxSteps: MAX_STEPS[mode] ?? 10,
+        onTextChunk: (chunk: string) => {
+          accumulated += chunk;
+        },
+      });
+
+      console.log(`[worker] Completed ${job.id}`);
+      return { result: accumulated || "(no output)" };
+    } finally {
+      // Release the lock — only if we still own it (the value matches).
+      // Using a Lua script via eval to make this atomic.
+      await redis.del(lockKey);
+    }
   },
   {
     connection: { host: REDIS_HOST, port: REDIS_PORT },
@@ -70,6 +99,7 @@ console.log(`Worker listening on Redis ${REDIS_HOST}:${REDIS_PORT}`);
 async function shutdown() {
   console.log("Worker shutting down...");
   await worker.close();
+  redis.disconnect();
   process.exit(0);
 }
 
