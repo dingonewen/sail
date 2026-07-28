@@ -90,6 +90,13 @@ const worker = new Worker<JobData>(
   }
 );
 
+// Clean up any stale locks from previous crashes on startup
+const staleLocks = await redis.keys("sail:lock:*");
+if (staleLocks.length > 0) {
+  await redis.del(...staleLocks);
+  console.log(`Worker: cleaned up ${staleLocks.length} stale lock(s)`);
+}
+
 console.log(`Worker listening on Redis ${REDIS_HOST}:${REDIS_PORT}`);
 
 // ── Graceful shutdown ──
