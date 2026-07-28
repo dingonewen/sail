@@ -58,7 +58,7 @@ const worker = new Worker<JobData>(
     if (!acquired) {
       console.log(`[worker] Lock held for ${conversationId}, delaying ${job.id}`);
       await job.moveToDelayed(Date.now() + LOCK_RETRY_DELAY_MS);
-      return;
+      throw new Error(`Retry after lock released for ${conversationId}`);
     }
 
     try {
