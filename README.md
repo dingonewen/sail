@@ -220,7 +220,7 @@ curl http://localhost:3000/chat/abc-123
 
 - **BullMQ + Redis** — job queue persists across restarts; API and Worker run as separate processes
 - **Sequential processing** — `concurrency: 1` ensures second job never interrupts the first
-- **Multi-worker ready** — BullMQ group concurrency keeps same-session jobs sequential even with multiple workers
+- **Multi-worker scaling** — `docker compose up -d --scale worker=3` spawns multiple workers; Redis distributed locks per `conversationId` ensure same-session jobs stay sequential across all workers, while different sessions process in parallel
 - **Multi-user** — memory isolated per `userId`, conversation history per `conversationId`
 - **Observability** — OTLP traces in Logfire when `SAIL_OBSERVABILITY=file`; `~/.sail/config.json` must include an `otlp` block
 - **Zero config** — reuses `~/.sail/config.json` provider setup from the CLI
