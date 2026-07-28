@@ -19,6 +19,7 @@ export interface CreateJobInput {
 
 const REDIS_HOST = process.env.REDIS_HOST || "localhost";
 const REDIS_PORT = parseInt(process.env.REDIS_PORT || "6379", 10);
+const LOCK_RETRY_DELAY_MS = 3000;
 
 let _queue: Queue<JobData> | null = null;
 
@@ -81,6 +82,8 @@ export class JobQueue {
 
     await q.add("chat", data, {
       jobId: taskId,
+      attempts: 50,
+      backoff: { type: "fixed", delay: LOCK_RETRY_DELAY_MS },
       ...({ group: { id: data.conversationId } } as any),
     });
 

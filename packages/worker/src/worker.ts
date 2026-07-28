@@ -23,8 +23,6 @@ const MAX_STEPS: Record<string, number> = {
 
 /** Lock TTL in seconds — max time a job can hold the lock */
 const LOCK_TTL = 300;
-/** How long to delay before retrying if a lock is already held */
-const LOCK_RETRY_DELAY_MS = 3000;
 
 // ── Provider — auto-load from ~/.sail/config.json ──
 const provider = autoApplyProvider();
@@ -56,9 +54,8 @@ const worker = new Worker<JobData>(
     // the lock won't be acquired and we delay the job.
     const acquired = await redis.set(lockKey, job.id!, "EX", LOCK_TTL, "NX");
     if (!acquired) {
-      console.log(`[worker] Lock held for ${conversationId}, delaying ${job.id}`);
-      await job.moveToDelayed(Date.now() + LOCK_RETRY_DELAY_MS);
-      throw new Error(`Retry after lock released for ${conversationId}`);
+      console.log(`[worker] Lock held for ${conversationId}, retrying ${job.id}`);
+      throw new Error(`Lock held for ${conversationId}`);
     }
 
     try {
