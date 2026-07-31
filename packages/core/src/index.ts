@@ -1,4 +1,4 @@
-export { getAgent } from "./agent.js";
+export { getAgent, resetAgent } from "./agent.js";
 export { createMemory } from "./memory.js";
 export { recordToolCall, recordModelTurn, recordDelegation, recordError, setObservabilityMode, getObservabilityMode, getObservabilityLogPath, flushObservability, setTraceId } from "./observability.js";
 export { SailController } from "./controller.js";

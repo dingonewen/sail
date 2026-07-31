@@ -8,6 +8,11 @@ import { createSubagents } from "./subagents.js";
 
 let _agent: Agent | null = null;
 
+/** Reset the cached agent so it picks up new env vars (model/provider). */
+export function resetAgent(): void {
+  _agent = null;
+}
+
 const webFetchTool = createTool({
   id: "web_fetch",
   description:

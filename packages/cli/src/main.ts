@@ -11,7 +11,7 @@ import {
   touchSession,
   renameSession,
 } from "./session.js";
-import { SailController, setObservabilityMode, getObservabilityMode, getObservabilityLogPath, flushObservability } from "@sail/core";
+import { SailController, setObservabilityMode, getObservabilityMode, getObservabilityLogPath, flushObservability, resetAgent } from "@sail/core";
 import type { AgentMode } from "@sail/core";
 import { loadContextFiles } from "./context.js";
 import {
@@ -424,6 +424,7 @@ async function main() {
             try {
               setDefaultProvider(targetId);
               applyProvider(targetId);
+              resetAgent();
               console.log(
                 c.green(`Switched to ${args[0]} (model: ${existing.model})`)
               );
@@ -433,6 +434,7 @@ async function main() {
           } else {
             // Not saved — launch setup wizard
             await runSetup(targetId);
+            resetAgent();
           }
         } else {
           // /login with no args — show current provider and list saved ones
@@ -468,6 +470,7 @@ async function main() {
         );
         if (args[0]) {
           process.env.SAIL_MODEL = args[0];
+          resetAgent();
           console.log(c.green(`Model changed to: ${args[0]}`));
         }
         break;
