@@ -7,7 +7,7 @@ interface PackageJson {
   description: string;
 }
 
-let version = "0.1.0";
+let version = "0.2.0";
 try {
   const pkgPath = resolve(import.meta.dirname, "..", "package.json");
   const pkg: PackageJson = JSON.parse(readFileSync(pkgPath, "utf-8"));
